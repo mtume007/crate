@@ -1224,6 +1224,217 @@
 }
 .add-modal-close:hover { color: rgba(var(--ink),0.6); }
 
+/* ── List view ───────────────────────────────────────────────────────────── */
+.list-view-wrap {
+  width: 100%; height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.list-view-wrap::-webkit-scrollbar { width: 4px; }
+.list-view-wrap::-webkit-scrollbar-thumb { background: rgba(var(--ink),0.08); border-radius: 2px; }
+
+.list-header,
+.list-row {
+  display: grid;
+  grid-template-columns: 52px 1.2fr 1.4fr 62px 1fr 1fr 48px;
+  align-items: center;
+  gap: 0 12px;
+  padding: 0 16px;
+}
+
+.list-header {
+  position: sticky; top: 0; z-index: 5;
+  height: 30px;
+  background: rgba(var(--surface),0.96);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(var(--ink),0.06);
+}
+.lh-cell {
+  font-family: var(--font-mono);
+  font-size: 8px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: rgba(var(--ink),0.22);
+}
+
+.list-row {
+  height: 56px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid rgba(var(--ink),0.04);
+  transition: background 0.12s ease, border-left-color 0.12s ease;
+}
+.list-row:hover {
+  background: var(--c-hover);
+  border-left-color: var(--c-accent);
+}
+.lr-thumb {
+  width: 40px; height: 40px;
+  border-radius: 4px; overflow: hidden; flex-shrink: 0;
+}
+.lr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 4px; }
+.lr-thumb .artwork-placeholder { width: 40px; height: 40px; border-radius: 4px; }
+.lr-thumb .artwork-initials { font-size: 14px; }
+.lr-artist {
+  font-family: var(--font-display);
+  font-size: 13px; font-weight: 400;
+  color: rgba(var(--ink),0.88);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lr-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: rgba(var(--ink),0.5);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lr-year, .lr-label, .lr-genre, .lr-tracks {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(var(--ink),0.45);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Coverflow view ──────────────────────────────────────────────────────── */
+.coverflow-wrap {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Artwork stage */
+.coverflow-stage {
+  position: relative;
+  width: 100%;
+  height: 310px;
+  flex-shrink: 0;
+  overflow: hidden;
+  /* subtle gradient floor under the cards */
+  background: linear-gradient(to bottom, transparent 70%, rgba(var(--surface),0.18) 100%);
+}
+
+.coverflow-card {
+  position: absolute;
+  left: 50%; top: 46%;
+  border-radius: 8px; overflow: hidden;
+  cursor: pointer;
+  will-change: transform, opacity;
+  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.32s ease;
+  filter: drop-shadow(0 16px 36px rgba(0,0,0,0.6));
+}
+.coverflow-card--active {
+  filter: drop-shadow(0 24px 56px rgba(0,0,0,0.85));
+  cursor: default;
+}
+.cf-art {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  border-radius: 8px;
+}
+
+/* Reflection — sits just below the card, flipped vertically */
+.cf-reflection {
+  position: absolute;
+  left: 0; top: 100%;
+  width: 100%; height: 60%;
+  transform: scaleY(-1);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  opacity: 0.22;
+  /* gradient mask: opaque at top (just below card), fades to transparent */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+  mask-image:         linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+  pointer-events: none;
+}
+.cf-reflection img,
+.cf-reflection .artwork-placeholder { width: 100%; height: 100%; border-radius: 0; object-fit: cover; }
+
+/* Left/right edge vignettes — dissolve distant cards into the background */
+.cf-vignette {
+  position: absolute; top: 0; bottom: 0;
+  width: 160px;
+  pointer-events: none; z-index: 20;
+}
+.cf-vignette--left  { left: 0;  background: linear-gradient(to right, var(--c-base) 0%, transparent 100%); }
+.cf-vignette--right { right: 0; background: linear-gradient(to left,  var(--c-base) 0%, transparent 100%); }
+
+/* Album info + tracklist */
+.coverflow-info {
+  flex: 1;
+  overflow-y: auto;
+  border-top: 1px solid rgba(var(--ink),0.07);
+}
+.coverflow-info::-webkit-scrollbar { width: 4px; }
+.coverflow-info::-webkit-scrollbar-thumb { background: rgba(var(--ink),0.08); border-radius: 2px; }
+
+.cf-meta {
+  text-align: center;
+  padding: 20px 24px 16px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.cf-album-title {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 500;
+  color: rgba(var(--ink),0.94);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.cf-album-artist {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.12em;
+  color: rgba(var(--ink),0.4);
+  margin-bottom: 12px;
+}
+.cf-chips {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  justify-content: center;
+}
+.cf-chip {
+  font-family: var(--font-mono);
+  font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: rgba(var(--ink),0.38);
+  background: rgba(var(--ink),0.04);
+  border: 1px solid rgba(var(--ink),0.07);
+  border-radius: 3px; padding: 2px 7px;
+}
+
+/* Tracklist */
+.cf-tracklist {
+  max-width: 560px; margin: 0 auto;
+  border-top: 1px solid rgba(var(--ink),0.06);
+  padding-bottom: 32px;
+}
+.cf-track {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  padding: 0 20px;
+  height: 36px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.12s ease, border-left-color 0.12s ease;
+}
+.cf-track + .cf-track { border-top: 1px solid rgba(var(--ink),0.03); }
+.cf-track:hover { background: var(--c-hover); border-left-color: var(--c-accent); }
+.cf-track-num {
+  font-family: var(--font-mono);
+  font-size: 9px; color: rgba(var(--ink),0.2);
+  white-space: pre;
+}
+.cf-track-title {
+  font-family: var(--font-display);
+  font-size: 13px; color: rgba(var(--ink),0.82);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cf-track-dur {
+  font-family: var(--font-mono);
+  font-size: 9px; color: rgba(var(--ink),0.38);
+  margin-left: 12px;
+}
+.cf-loading {
+  font-family: var(--font-mono);
+  font-size: 10px; color: rgba(var(--ink),0.3);
+  text-align: center; padding: 24px;
+}
+
 /* ── Light mode overrides ────────────────────────────────────────────────── */
 /* Glass borders flip via --ink. Backgrounds flip via --surface. */
 /* Only overrides that can't be handled by CSS vars go here.    */

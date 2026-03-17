@@ -89,6 +89,7 @@ export default function App() {
   const [backendError, setBackendError] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'artist' | 'year-desc' | 'year-asc'>('artist')
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'coverflow'>('grid')
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -289,9 +290,9 @@ export default function App() {
 
       <div className="toolbar">
         <div className="view-switcher">
-          <button className="vs-btn active" title="Grid"><IconGrid size={12} /></button>
-          <button className="vs-btn" title="Coverflow"><IconCoverflow size={12} /></button>
-          <button className="vs-btn" title="List"><IconList size={12} /></button>
+          <button className={`vs-btn${viewMode === 'grid' ? ' active' : ''}`} title="Grid" onClick={() => setViewMode('grid')}><IconGrid size={12} /></button>
+          <button className={`vs-btn${viewMode === 'coverflow' ? ' active' : ''}`} title="Coverflow" onClick={() => setViewMode('coverflow')}><IconCoverflow size={12} /></button>
+          <button className={`vs-btn${viewMode === 'list' ? ' active' : ''}`} title="List" onClick={() => setViewMode('list')}><IconList size={12} /></button>
         </div>
         <div className="toolbar-sep" />
         <div className="sort-switcher">
@@ -321,7 +322,14 @@ export default function App() {
       </div>
 
       <main className="main-content">
-        {activeView === 'library' && <LibraryView albums={sorted} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} hasLibrary={albums.length > 0} searchQuery={q} />}
+        {activeView === 'library' && (
+          <LibraryView
+            albums={sorted} loaded={loaded} scanning={scanning}
+            onScan={() => handleScan()} onAlbumClick={setSelectedAlbum}
+            onPlayTrack={playTrack} hasLibrary={albums.length > 0}
+            searchQuery={q} viewMode={viewMode}
+          />
+        )}
       </main>
 
       <Playbar
@@ -411,9 +419,10 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
   )
 }
 
-function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, hasLibrary, searchQuery }: {
+function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode }: {
   albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
-  hasLibrary: boolean; searchQuery: string
+  onPlayTrack: (track: Track, list: Track[], album: Album) => void
+  hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow'
 }) {
   if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
   if (albums.length === 0 && !scanning) {
@@ -436,6 +445,8 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, hasLibrar
       </div>
     )
   }
+  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} />
+  if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} />
   return (
     <div className="library-grid-wrap">
       <div className="library-grid">
@@ -461,6 +472,169 @@ function AlbumCard({ album, onClick }: { album: Album; onClick: (a: Album) => vo
           <div className="album-frosted-meta">{meta}</div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── List View ───────────────────────────────────────────────────────────────
+
+function ListView({ albums, onAlbumClick }: { albums: Album[]; onAlbumClick: (a: Album) => void }) {
+  return (
+    <div className="list-view-wrap">
+      <div className="list-header">
+        <span />
+        <span className="lh-cell">Artist</span>
+        <span className="lh-cell">Title</span>
+        <span className="lh-cell">Year</span>
+        <span className="lh-cell">Label</span>
+        <span className="lh-cell">Genre</span>
+        <span className="lh-cell">Tracks</span>
+      </div>
+      {albums.map(album => <ListRow key={album.id} album={album} onClick={onAlbumClick} />)}
+    </div>
+  )
+}
+
+function ListRow({ album, onClick }: { album: Album; onClick: (a: Album) => void }) {
+  const [imgError, setImgError] = useState(false)
+  const url = artworkUrl(album.artwork_url)
+  return (
+    <div className="list-row" onClick={() => onClick(album)}>
+      <div className="lr-thumb">
+        {url && !imgError
+          ? <img src={url} alt="" onError={() => setImgError(true)} />
+          : <ArtworkPlaceholder title={album.title} />}
+      </div>
+      <span className="lr-artist">{album.artist || '—'}</span>
+      <span className="lr-title">{album.title || '—'}</span>
+      <span className="lr-year">{album.enriched_year || album.year || '—'}</span>
+      <span className="lr-label">{album.enriched_label || album.label || '—'}</span>
+      <span className="lr-genre">{album.enriched_genre || album.genre || '—'}</span>
+      <span className="lr-tracks">{album.track_count != null ? String(album.track_count) : '—'}</span>
+    </div>
+  )
+}
+
+// ── Coverflow View ──────────────────────────────────────────────────────────
+
+const CF_CARD  = 280  // base card size (px)
+const CF_STEP  = 200  // horizontal distance between card centres (px)
+const CF_SCALE = [1, 0.714, 0.5, 0.357] as const
+const CF_OPAC  = [1, 0.60, 0.35, 0.18]  as const
+
+function CoverflowView({ albums, onPlayTrack }: {
+  albums: Album[]
+  onPlayTrack: (track: Track, list: Track[], album: Album) => void
+}) {
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [tracks, setTracks]       = useState<Track[]>([])
+  const [tracksLoading, setTracksLoading] = useState(false)
+
+  const safeIdx     = albums.length > 0 ? Math.min(Math.max(activeIdx, 0), albums.length - 1) : 0
+  const activeAlbum = albums[safeIdx]
+  const activeId    = activeAlbum?.id ?? -1
+
+  // Fetch tracks whenever the centred album changes
+  useEffect(() => {
+    if (!activeAlbum) return
+    setTracksLoading(true)
+    setTracks([])
+    fetchTracks(activeAlbum.folder_path)
+      .then(data => { setTracks(data.tracks); setTracksLoading(false) })
+      .catch(() => setTracksLoading(false))
+  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard navigation — only fires when focus is not in a text input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowLeft')  setActiveIdx(i => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setActiveIdx(i => Math.min(albums.length - 1, i + 1))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [albums.length])
+
+  return (
+    <div className="coverflow-wrap">
+
+      {/* Artwork stage */}
+      <div className="coverflow-stage">
+        {albums.map((album, idx) => {
+          const dist = idx - safeIdx
+          const abs  = Math.abs(dist)
+          if (abs > 3) return null
+          const scale   = CF_SCALE[abs]
+          const opacity = CF_OPAC[abs]
+          const offsetX = dist * CF_STEP
+          const url = artworkUrl(album.artwork_url)
+          return (
+            <div
+              key={album.id}
+              className={`coverflow-card${dist === 0 ? ' coverflow-card--active' : ''}`}
+              style={{
+                width: `${CF_CARD}px`, height: `${CF_CARD}px`,
+                transform: `translateX(calc(-50% + ${offsetX}px)) translateY(-50%) scale(${scale})`,
+                opacity,
+                zIndex: 10 - abs,
+              }}
+              onClick={() => { if (dist !== 0) setActiveIdx(idx) }}
+            >
+              {url
+                ? <img src={url} alt={album.title} className="cf-art" />
+                : <ArtworkPlaceholder title={album.title} />}
+              {/* Reflection */}
+              <div className="cf-reflection" aria-hidden>
+                {url
+                  ? <img src={url} alt="" className="cf-art" />
+                  : <ArtworkPlaceholder title={album.title} />}
+              </div>
+            </div>
+          )
+        })}
+        {/* Edge vignettes */}
+        <div className="cf-vignette cf-vignette--left"  aria-hidden />
+        <div className="cf-vignette cf-vignette--right" aria-hidden />
+      </div>
+
+      {/* Album info + tracklist */}
+      {activeAlbum && (
+        <div className="coverflow-info">
+          <div className="cf-meta">
+            <div className="cf-album-title">{activeAlbum.title || 'Unknown Album'}</div>
+            <div className="cf-album-artist">{(activeAlbum.artist || 'Unknown').toUpperCase()}</div>
+            <div className="cf-chips">
+              {(activeAlbum.enriched_year || activeAlbum.year) && (
+                <span className="cf-chip">{activeAlbum.enriched_year || activeAlbum.year}</span>
+              )}
+              {(activeAlbum.enriched_label || activeAlbum.label) && (
+                <span className="cf-chip">{activeAlbum.enriched_label || activeAlbum.label}</span>
+              )}
+              {(activeAlbum.enriched_genre || activeAlbum.genre) && (
+                <span className="cf-chip">{activeAlbum.enriched_genre || activeAlbum.genre}</span>
+              )}
+            </div>
+          </div>
+          <div className="cf-tracklist">
+            {tracksLoading && <div className="cf-loading">Loading…</div>}
+            {!tracksLoading && tracks.map((track, i) => (
+              <div
+                key={track.id}
+                className="cf-track"
+                onClick={() => onPlayTrack(track, tracks, activeAlbum)}
+              >
+                <span className="cf-track-num">
+                  {track.track_number ? track.track_number.split('/')[0].padStart(2, ' ') : String(i + 1).padStart(2, ' ')}
+                </span>
+                <span className="cf-track-title">{track.title || 'Unknown'}</span>
+                {track.duration != null && (
+                  <span className="cf-track-dur">{formatDuration(track.duration)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
