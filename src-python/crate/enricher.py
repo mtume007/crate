@@ -132,11 +132,23 @@ def validate_match(artist: str, title: str, discogs_result: dict, api_key: str) 
     search_title = title.lower()
     search_artist = artist.lower().split('&')[0].strip()
 
-    # Quick title check — if titles overlap closely, skip the API call entirely
-    result_album_part = result_title.split(' - ')[-1].strip()
-    if search_title in result_title or result_album_part in search_title:
-        logger.info(f'Title match — skipping validation for: {title}')
+    # Quick title check — skip the API call only when title AND artist both match closely
+    result_parts = result_title.split(' - ', 1)
+    result_artist_part = result_parts[0].strip().lower() if len(result_parts) > 1 else ''
+    result_album_part = result_parts[-1].strip().lower()
+    artist_ok = (
+        not result_artist_part                       # no artist field in result title
+        or search_artist in result_artist_part       # our artist appears in result
+        or result_artist_part in search_artist       # result artist appears in ours
+    )
+    title_ok = search_title in result_title or result_album_part in search_title
+    if artist_ok and title_ok:
+        logger.info(f'Title+artist match — skipping validation for: {title}')
         return 0.9
+    elif not artist_ok and title_ok:
+        # Title matches but artist is clearly different — fail immediately, no API call
+        logger.info(f'Title match but artist mismatch — confidence 0.0 for: {title}')
+        return 0.0
 
     # Otherwise ask Claude
     try:
@@ -162,7 +174,11 @@ def validate_match(artist: str, title: str, discogs_result: dict, api_key: str) 
                 'max_tokens': 50,
                 'messages': [{
                     'role': 'user',
-                    'content': f'''Does this Discogs result match the album we are looking for? Be generous — different pressings, reissues, and regional releases of the same album count as a match.
+                    'content': f'''Does this Discogs result match the album we are looking for?
+
+Be generous about different pressings, reissues, and regional editions of the same release by the same artist — those all count as matches.
+
+Be strict about artist name: if the artist on Discogs is completely different from the artist we are looking for, return confidence 0.0 regardless of how similar the titles are. A matching title does not override a wrong artist.
 
 We are looking for:
 Artist: {artist}
@@ -171,10 +187,10 @@ Album: {title}
 Discogs result:
 {json.dumps(result_summary, indent=2)}
 
-A match means: same music, same artist (allowing for name variations), same album title (allowing for subtitle differences).
-NOT a match means: completely different artist, or completely different album.
+A match means: same music, same artist (minor name variations like punctuation, abbreviations, or "The" prefix are fine), same album title (subtitle differences, regional title variations, and reissue suffixes are fine).
+NOT a match: if the Discogs artist is a completely different artist from "{artist}", return 0.0 — do not let title similarity override this rule.
 
-Reply ONLY with JSON: {{"confidence": 0.0}} where 1.0 = same music, 0.0 = different music entirely.'''
+Reply ONLY with JSON: {{"confidence": 0.0}} where 1.0 = certain match, 0.0 = different artist or completely different album.'''
                 }]
             },
             timeout=15
