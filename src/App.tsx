@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useTheme } from './context/ThemeContext'
 import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, artworkUrl, audioUrl } from './api'
 import Settings from './Settings'
 import ReviewPanel from './ReviewPanel'
 import AddModal from './components/AddModal'
+import Onboarding from './components/Onboarding'
 import type { DiscogsCandidate } from './components/AlbumMatcher'
 import './styles/app.css'
 
-type View = 'library' | 'sets' | 'tagger' | 'listening'
+type View = 'library'
 
 interface Album {
   id: number
@@ -55,10 +55,7 @@ interface Stats {
   untagged: number
 }
 
-const LIBRARY_PATH = "/Users/pedersimonsen/Music/Music/Media.localized/Music"
-
 export default function App() {
-  const { theme, toggle } = useTheme()
   const [activeView, setActiveView] = useState<View>('library')
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [albums, setAlbums] = useState<Album[]>([])
@@ -67,6 +64,8 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0, file: '' })
   const [loaded, setLoaded] = useState(false)
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
+  const [libraryPath, setLibraryPath] = useState('')
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -95,6 +94,24 @@ export default function App() {
   }, [])
 
   useEffect(() => { loadLibrary() }, [loadLibrary])
+
+  // Check config on mount — show onboarding if library path not set
+  useEffect(() => {
+    async function checkConfig() {
+      try {
+        const res = await fetch('http://localhost:8000/config')
+        const config = await res.json()
+        if (config.library?.path) {
+          setLibraryPath(config.library.path)
+        } else {
+          setShowOnboarding(true)
+        }
+      } catch {
+        setShowOnboarding(true)
+      }
+    }
+    checkConfig()
+  }, [])
 
   const handleMatch = useCallback(async (
     albumId: number,
@@ -181,9 +198,17 @@ export default function App() {
     return () => clearInterval(interval)
   }, [scanning, loadLibrary])
 
-  const handleScan = async () => {
-    try { setScanning(true); await startScan(LIBRARY_PATH) }
+  const handleScan = async (path?: string) => {
+    const scanPath = path || libraryPath
+    if (!scanPath) return
+    try { setScanning(true); await startScan(scanPath) }
     catch (e) { console.error('Scan failed:', e); setScanning(false) }
+  }
+
+  const handleOnboardingComplete = (path: string) => {
+    setLibraryPath(path)
+    setShowOnboarding(false)
+    handleScan(path)
   }
 
   const pct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0
@@ -194,10 +219,8 @@ export default function App() {
         onMouseEnter={() => setSidebarExpanded(true)}
         onMouseLeave={() => setSidebarExpanded(false)}>
         <nav className="nav-items">
-          <NavItem id="library"   label="Library"   active={activeView} icon={<IconGrid />}      onClick={setActiveView} />
-          <NavItem id="sets"      label="Sets"       active={activeView} icon={<IconSets />}      onClick={setActiveView} />
-          <NavItem id="tagger"    label="Review"     active={activeView} icon={<IconTagger />}    onClick={() => setShowReview(true)} />
-          <NavItem id="listening" label="Listening"  active={activeView} icon={<IconListening />} onClick={setActiveView} />
+          <NavItem id="library" label="Library" active={activeView} icon={<IconGrid />}   onClick={() => setActiveView('library')} />
+          <NavItem id="library" label="Review"  active={activeView} icon={<IconTagger />} onClick={() => setShowReview(true)} />
         </nav>
         <div className="nav-divider" />
         <nav className="nav-footer">
@@ -211,9 +234,6 @@ export default function App() {
       <header className="titlebar">
         <span className="titlebar-context">{stats.albums > 0 ? `${stats.albums} albums` : 'Crate'}</span>
         {stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
-        <div className="titlebar-right">
-          <button className="theme-toggle" onClick={toggle}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
-        </div>
       </header>
 
       <div className="toolbar">
@@ -228,21 +248,14 @@ export default function App() {
           <input className="search-input" placeholder="artist, label, cat#..." />
         </div>
         <div className="toolbar-right">
-          <button className="tag-filter">Mood</button>
-          <button className="tag-filter">Scene</button>
-          <button className="tag-filter">Role</button>
-          <div className="toolbar-sep" />
-          <button className={`scan-btn ${scanning ? 'scanning' : ''}`} onClick={handleScan} disabled={scanning}>
+          <button className={`scan-btn ${scanning ? 'scanning' : ''}`} onClick={() => handleScan()} disabled={scanning}>
             {scanning ? `${pct}%${scanProgress.file ? ` — ${scanProgress.file}` : ''}` : albums.length === 0 ? 'Import Library' : 'Rescan'}
           </button>
         </div>
       </div>
 
       <main className="main-content">
-        {activeView === 'library'   && <LibraryView albums={albums} loaded={loaded} scanning={scanning} onScan={handleScan} onAlbumClick={setSelectedAlbum} />}
-        {activeView === 'sets'      && <PlaceholderView label="Sets" />}
-        {activeView === 'tagger'    && <PlaceholderView label="Tagger" />}
-        {activeView === 'listening' && <PlaceholderView label="Listening" />}
+        {activeView === 'library' && <LibraryView albums={albums} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} />}
       </main>
 
       <Playbar
@@ -282,13 +295,14 @@ export default function App() {
         onSkip={handleSkipMatch}
         onClose={() => setPendingAlbum(null)}
       />
+      {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
     </div>
   )
 }
 
-function NavItem({ id, label, active, icon, onClick }: { id: View; label: string; active: View; icon: React.ReactNode; onClick: (v: View) => void }) {
+function NavItem({ id, label, active, icon, onClick }: { id: View; label: string; active: View; icon: React.ReactNode; onClick: () => void }) {
   return (
-    <button className={`nav-item ${active === id ? 'active' : ''}`} onClick={() => onClick(id)} title={label}>
+    <button className={`nav-item ${active === id ? 'active' : ''}`} onClick={onClick} title={label}>
       <span className="nav-icon">{icon}</span>
       <span className="nav-label">{label}</span>
     </button>
@@ -348,21 +362,11 @@ function ArtworkPlaceholder({ title }: { title: string }) {
   )
 }
 
-function PlaceholderView({ label }: { label: string }) {
-  return <div className="placeholder-view"><span className="placeholder-label">{label}</span></div>
-}
-
 function IconGrid({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="1" y="1" width="6" height="6" /><rect x="9" y="1" width="6" height="6" /><rect x="1" y="9" width="6" height="6" /><rect x="9" y="9" width="6" height="6" /></svg>
 }
-function IconSets({ size = 16 }: { size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M2 4h12M2 8h12M2 12h8" /><circle cx="13" cy="12" r="2" /></svg>
-}
 function IconTagger({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="8" r="3" /><path d="M8 2v2M8 12v2M2 8h2M12 8h2" opacity="0.5" /></svg>
-}
-function IconListening({ size = 16 }: { size?: number }) {
-  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="8" r="6" /><polygon points="6.5,5.5 11.5,8 6.5,10.5" fill="currentColor" stroke="none" /></svg>
 }
 function IconSettings({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="8" r="2.5" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" /></svg>
@@ -501,7 +505,7 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
             <div className="detail-tracks">
               {tracks.map(track => (
                 <TrackRow key={track.id} track={track} hasBpm={hasBpm} hasKey={hasKey}
-                  onPlay={() => onPlayTrack(track, tracks, album)} />
+                  albumArtist={album.artist} onPlay={() => onPlayTrack(track, tracks, album)} />
               ))}
             </div>
           )}
@@ -519,8 +523,8 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-function TrackRow({ track, hasBpm, hasKey, onPlay }: {
-  track: Track; hasBpm: boolean; hasKey: boolean; onPlay: () => void
+function TrackRow({ track, hasBpm, hasKey, albumArtist, onPlay }: {
+  track: Track; hasBpm: boolean; hasKey: boolean; albumArtist?: string; onPlay: () => void
 }) {
   const dur = track.duration != null ? formatDuration(track.duration) : ''
   const bpm = track.bpm ? String(Math.round(track.bpm)) : ''
@@ -531,7 +535,9 @@ function TrackRow({ track, hasBpm, hasKey, onPlay }: {
       <span className="track-num">{num}</span>
       <div className="track-title-wrap">
         <div className="track-title">{track.title || 'Unknown'}</div>
-        {track.artist && <div className="track-sub">{track.artist.toUpperCase()}</div>}
+        {track.artist && track.artist.toLowerCase() !== albumArtist?.toLowerCase() && (
+          <div className="track-sub">{track.artist.toUpperCase()}</div>
+        )}
       </div>
       {hasBpm && <span className="track-bpm">{bpm}</span>}
       {hasKey && <span className="track-key">{track.key || ''}</span>}
@@ -604,7 +610,7 @@ function Playbar({ track, album, isPlaying, progress, volume, onToggle, onPrev, 
       </div>
 
       <div className="playbar-right">
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor" style={{ color: 'rgba(255,255,255,0.22)', flexShrink: 0 }}>
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor" style={{ color: 'rgba(var(--ink),0.22)', flexShrink: 0 }}>
           <path d="M1 3.5h2l3-2.5v9l-3-2.5H1zM7 3.5a2.5 2.5 0 010 4M8.5 2a5 5 0 010 7"/>
         </svg>
         <input

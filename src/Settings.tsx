@@ -3,25 +3,13 @@ import { fetchConfig, updateConfig } from './api'
 
 interface Config {
   ai: { provider: string; model: string; api_key: string }
-  theme: { accent: string; base: string; card: string; hover: string; border: string; radius: number; font: string }
   library: { path: string }
   enrichment: { discogs_token: string; auto_enrich: boolean; source: string }
 }
 
-const ACCENT_PRESETS = ['#e8a045','#e8694a','#6b8cff','#4acaa8','#b06bff','#e84a8c']
-const FONTS = ['Outfit', 'DM Sans', 'Inter', 'System']
-
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '')
-  const r = parseInt(h.slice(0, 2), 16)
-  const g = parseInt(h.slice(2, 4), 16)
-  const b = parseInt(h.slice(4, 6), 16)
-  return { r, g, b }
-}
-
 export default function Settings({ onClose }: { onClose: () => void }) {
   const [config, setConfig] = useState<Config | null>(null)
-  const [tab, setTab] = useState<'appearance' | 'ai' | 'library' | 'enrichment'>('appearance')
+  const [tab, setTab] = useState<'ai' | 'library' | 'enrichment'>('ai')
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -34,24 +22,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
-
-  useEffect(() => {
-    if (!config) return
-    const root = document.documentElement
-    const { r, g, b } = hexToRgb(config.theme.accent)
-    root.style.setProperty('--c-accent', config.theme.accent)
-    root.style.setProperty('--c-accent-dim', `rgba(${r},${g},${b},0.12)`)
-    root.style.setProperty('--c-accent-border', `rgba(${r},${g},${b},0.3)`)
-    root.style.setProperty('--c-base', config.theme.base)
-    root.style.setProperty('--c-card', config.theme.card)
-    root.style.setProperty('--c-hover', config.theme.hover)
-    root.style.setProperty('--c-border', config.theme.border)
-    root.style.setProperty('--border-radius', `${config.theme.radius}px`)
-    const fontStack = config.theme.font === 'System'
-      ? '-apple-system, sans-serif'
-      : `'${config.theme.font}', -apple-system, sans-serif`
-    root.style.setProperty('--font-display', fontStack)
-  }, [config])
 
   const set = (section: keyof Config, key: string, value: any) =>
     setConfig(c => c ? { ...c, [section]: { ...c[section as keyof Config], [key]: value } } : c)
@@ -77,7 +47,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-tabs">
-          {(['appearance', 'ai', 'library', 'enrichment'] as const).map(t => (
+          {(['ai', 'library', 'enrichment'] as const).map(t => (
             <button key={t} className={`settings-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
               {t.toUpperCase()}
             </button>
@@ -85,43 +55,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-body">
-          {tab === 'appearance' && <>
-            <div className="settings-row">
-              <div className="settings-row-label">Accent Colour</div>
-              <div className="accent-row">
-                <input type="color" value={config.theme.accent} className="color-picker"
-                  onChange={e => set('theme', 'accent', e.target.value)} />
-                <div className="accent-presets">
-                  {ACCENT_PRESETS.map(c => (
-                    <div key={c} className="accent-swatch"
-                      style={{ background: c, outlineColor: config.theme.accent === c ? c : 'transparent' }}
-                      onClick={() => set('theme', 'accent', c)} />
-                  ))}
-                </div>
-                <span className="hex-label">{config.theme.accent}</span>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-row-label">Corner Radius</div>
-              <div className="slider-row">
-                <input type="range" min={0} max={16} value={config.theme.radius} className="settings-slider"
-                  onChange={e => set('theme', 'radius', parseInt(e.target.value))} />
-                <span className="slider-value">{config.theme.radius}px</span>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-row-label">Font</div>
-              <div className="font-options">
-                {FONTS.map(f => (
-                  <button key={f} className={`font-btn ${config.theme.font === f ? 'active' : ''}`}
-                    style={{ fontFamily: f === 'System' ? '-apple-system' : f }}
-                    onClick={() => set('theme', 'font', f)}>{f}</button>
-                ))}
-              </div>
-            </div>
-          </>}
 
           {tab === 'ai' && <>
             <div className="settings-row">
@@ -184,7 +117,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                     setEnriching(true)
                     setEnrichStatus(null)
                     await fetch('http://localhost:8000/library/enrich', { method: 'POST' })
-                    // Poll status
                     const poll = setInterval(async () => {
                       const r = await fetch('http://localhost:8000/library/enrich/status')
                       const s = await r.json()

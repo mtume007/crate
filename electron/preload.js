@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // Window controls
@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (!filePath) return ''
     return `crate-asset://${filePath.replace(/\\/g, '/')}`
   },
+
+  // Open a native folder picker — returns the selected path or null
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
 
   platform: process.platform,
 })
