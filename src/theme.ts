@@ -27,6 +27,7 @@ export function applySurfaceTokens(mode: ThemeMode, accentOverride?: string) {
   const accent = accentOverride ?? (mode === 'light' ? '#c07d20' : '#e8a045')
   const { r, g, b } = hexToRgb(accent)
   root.style.setProperty('--c-accent', accent)
+  root.style.setProperty('--c-accent-rgb', `${r},${g},${b}`)
   root.style.setProperty('--c-accent-dim', `rgba(${r},${g},${b},${mode === 'light' ? 0.09 : 0.12})`)
   root.style.setProperty('--c-accent-border', `rgba(${r},${g},${b},${mode === 'light' ? 0.22 : 0.3})`)
 }

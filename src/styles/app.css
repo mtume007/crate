@@ -1323,12 +1323,12 @@
 
 /* Edit mode row */
 .list-row--editing {
-  background: rgba(var(--c-accent-dim),1);
+  background: var(--c-accent-dim);
   border-left-color: var(--c-accent) !important;
   height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px;
   cursor: default;
 }
-.list-row--editing:hover { background: rgba(var(--c-accent-dim),1); }
+.list-row--editing:hover { background: var(--c-accent-dim); }
 
 .lr-edit-input {
   font-family: var(--font-mono); font-size: 10px;
@@ -1340,7 +1340,7 @@
   outline: none;
   transition: border-color 0.12s ease;
 }
-.lr-edit-input:focus { border-color: rgba(var(--c-accent),0.5); }
+.lr-edit-input:focus { border-color: rgba(var(--c-accent-rgb),0.5); }
 
 /* Chip input */
 .chip-input {
@@ -1352,13 +1352,13 @@
   cursor: text;
   transition: border-color 0.12s ease;
 }
-.chip-input:focus-within { border-color: rgba(var(--c-accent),0.5); }
+.chip-input:focus-within { border-color: rgba(var(--c-accent-rgb),0.5); }
 .chip-tag {
   display: inline-flex; align-items: center; gap: 3px;
   font-family: var(--font-mono); font-size: 9px;
   color: rgba(var(--ink),0.82);
-  background: rgba(var(--c-accent),0.14);
-  border: 1px solid rgba(var(--c-accent),0.25);
+  background: rgba(var(--c-accent-rgb),0.14);
+  border: 1px solid rgba(var(--c-accent-rgb),0.25);
   border-radius: 3px; padding: 1px 4px 1px 5px;
 }
 .chip-remove {
@@ -1397,9 +1397,9 @@
 .lr-edit:hover { color: rgba(var(--ink),0.7) !important; background: rgba(var(--ink),0.06) !important; }
 .lr-save {
   color: var(--c-accent);
-  background: rgba(var(--c-accent),0.10);
+  background: rgba(var(--c-accent-rgb),0.10);
 }
-.lr-save:hover { background: rgba(var(--c-accent),0.20); }
+.lr-save:hover { background: rgba(var(--c-accent-rgb),0.20); }
 .lr-save:disabled { opacity: 0.5; cursor: not-allowed; }
 .lr-cancel {
   color: rgba(var(--ink),0.45);
@@ -1510,8 +1510,8 @@
   font-family: var(--font-mono);
   font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase;
   color: rgba(var(--ink),0.55);
-  background: rgba(var(--c-accent), 0.06);
-  border: 1px solid rgba(var(--c-accent), 0.2);
+  background: rgba(var(--c-accent-rgb), 0.06);
+  border: 1px solid rgba(var(--c-accent-rgb), 0.2);
   border-radius: 3px; padding: 2px 7px;
 }
 
