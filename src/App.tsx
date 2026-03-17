@@ -126,18 +126,12 @@ export default function App() {
     checkConfig()
   }, [])
 
-  const handleMatch = useCallback(async (
-    albumId: number,
-    candidate: DiscogsCandidate | null,
-    discogsUrl?: string
+  const handleMatch = useCallback((
+    _albumId: number,
+    _candidate: DiscogsCandidate | null,
+    _discogsUrl?: string
   ) => {
-    const url = discogsUrl ?? (candidate ? `https://www.discogs.com${candidate.uri}` : null)
-    if (!url) return
-    await fetch('http://localhost:8000/library/enrich/url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ album_id: albumId, discogs_url: url })
-    })
+    // POST already completed inside AlbumMatcher — just close and refresh
     setPendingAlbum(null)
     loadLibrary()
   }, [loadLibrary])
@@ -506,6 +500,9 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
 }) {
   const [tracks, setTracks] = useState<Track[]>([])
   const [loading, setLoading] = useState(true)
+  const [urlInput, setUrlInput] = useState('')
+  const [urlLoading, setUrlLoading] = useState(false)
+  const [urlError, setUrlError] = useState<string | null>(null)
   const url = artworkUrl(album.artwork_url)
 
   useEffect(() => {
@@ -577,27 +574,44 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
                   Find on Discogs
                 </button>
               )}
-              <input
-                type="text"
-                className="discogs-url-input"
-                placeholder={album.enriched_discogs_url ? 'Paste URL to change release…' : 'Paste Discogs URL to link…'}
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter') {
-                    const url = (e.target as HTMLInputElement).value.trim()
-                    if (!url) return
-                    const res = await fetch('http://localhost:8000/library/enrich/url', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ album_id: album.id, discogs_url: url })
-                    })
-                    const data = await res.json()
-                    if (data.success) {
-                      onRefresh()
-                      ;(e.target as HTMLInputElement).value = ''
+              <div className="discogs-url-wrap">
+                <input
+                  type="text"
+                  className={`discogs-url-input${urlLoading ? ' discogs-url-input--loading' : ''}`}
+                  placeholder={album.enriched_discogs_url ? 'Paste URL to change release…' : 'Paste Discogs URL to link…'}
+                  value={urlInput}
+                  disabled={urlLoading}
+                  onChange={e => { setUrlInput(e.target.value); setUrlError(null) }}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const val = urlInput.trim()
+                      if (!val) return
+                      setUrlLoading(true)
+                      setUrlError(null)
+                      try {
+                        const res = await fetch('http://localhost:8000/library/enrich/url', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ album_id: album.id, discogs_url: val })
+                        })
+                        const data = await res.json()
+                        if (data.success) {
+                          onRefresh()
+                          setUrlInput('')
+                        } else {
+                          setUrlError(data.error || 'Failed to link release')
+                        }
+                      } catch {
+                        setUrlError('Request failed — is the server running?')
+                      } finally {
+                        setUrlLoading(false)
+                      }
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+                {urlInput && !urlLoading && <span className="discogs-url-hint">↵</span>}
+              </div>
+              {urlError && <p className="discogs-url-error">{urlError}</p>}
             </div>
           </div>
           <button className="detail-close" onClick={onClose} title="Close (Esc)">✕</button>

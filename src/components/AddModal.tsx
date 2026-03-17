@@ -45,6 +45,7 @@ export default function AddModal({ album, onConfirm, onSkip, onClose, onOpenSett
           <button className="add-modal-close" onClick={onClose}>✕</button>
         </div>
         <AlbumMatcher
+          albumId={album.albumId}
           artist={album.artist}
           title={album.title}
           year={album.year}

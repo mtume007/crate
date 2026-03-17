@@ -106,7 +106,7 @@ function createWindow() {
         'Content-Security-Policy': [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:8000; " +
           "media-src crate-asset: blob: http://localhost:8000; " +
-          "img-src 'self' data: http://localhost:8000 crate-asset:; " +
+          "img-src 'self' data: http://localhost:8000 crate-asset: https://*.discogs.com https://*.discogs-cdn.com; " +
           "font-src 'self' data: https://fonts.gstatic.com; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
           "connect-src 'self' ws://localhost:* http://localhost:*;"

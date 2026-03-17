@@ -593,6 +593,31 @@
   color: rgba(var(--ink),0.75);
 }
 .discogs-url-input::placeholder { color: rgba(var(--ink),0.2); }
+.discogs-url-input--loading { opacity: 0.5; cursor: wait; }
+
+.discogs-url-wrap {
+  position: relative;
+  width: 100%;
+}
+.discogs-url-wrap .discogs-url-input { padding-right: 24px; }
+.discogs-url-hint {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(var(--ink),0.22);
+  pointer-events: none;
+  user-select: none;
+}
+.discogs-url-error {
+  margin: 3px 0 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: #e05a5a;
+  letter-spacing: 0.01em;
+}
 
 /* ── Track list ──────────────────────────────────────────────────────────── */
 .track-headers {
@@ -1153,6 +1178,14 @@
 }
 .am-confirm:disabled             { opacity: 0.3; cursor: default; }
 .am-confirm:not(:disabled):hover { opacity: 0.88; }
+.am-confirm-error {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: #e05a5a;
+  letter-spacing: 0.01em;
+}
 
 /* ── AddModal ────────────────────────────────────────────────────────────── */
 .add-modal-overlay {

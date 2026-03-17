@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 export interface DiscogsCandidate {
   id: number
+  type?: string
   title: string
   year?: number
   label?: string | string[]
@@ -12,6 +13,7 @@ export interface DiscogsCandidate {
 }
 
 interface AlbumMatcherProps {
+  albumId: number
   artist: string
   title: string
   year?: string
@@ -23,6 +25,7 @@ interface AlbumMatcherProps {
 }
 
 export default function AlbumMatcher({
+  albumId,
   artist,
   title,
   year,
@@ -37,6 +40,8 @@ export default function AlbumMatcher({
   const [manualUrl, setManualUrl] = useState('')
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
   // null = still checking, true = token missing, false = token present
   const [noToken, setNoToken] = useState<boolean | null>(null)
 
@@ -73,14 +78,36 @@ export default function AlbumMatcher({
   }, [artist, title, noToken])
 
   const canConfirm =
-    selected === 'none' ? manualUrl.trim().length > 0 : selected !== null
+    !confirmLoading && (selected === 'none' ? manualUrl.trim().length > 0 : selected !== null)
 
-  function handleConfirm() {
-    if (selected === 'none') {
-      onConfirm(null, manualUrl.trim())
-    } else {
-      const match = candidates.find(c => c.id === selected) ?? null
-      onConfirm(match)
+  async function handleConfirm() {
+    setConfirmError(null)
+    setConfirmLoading(true)
+    try {
+      let discogsUrl: string
+      let candidate: DiscogsCandidate | null = null
+      if (selected === 'none') {
+        discogsUrl = manualUrl.trim()
+      } else {
+        candidate = candidates.find(c => c.id === selected) ?? null
+        const resourceType = candidate?.type === 'master' ? 'master' : 'release'
+        discogsUrl = `https://www.discogs.com/${resourceType}/${candidate?.id}`
+      }
+      const res = await fetch('http://localhost:8000/library/enrich/url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ album_id: albumId, discogs_url: discogsUrl }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setConfirmError(data.error || 'Failed to save — check your Discogs token')
+        return
+      }
+      onConfirm(candidate, discogsUrl)
+    } catch {
+      setConfirmError('Request failed — is the server running?')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -187,17 +214,20 @@ export default function AlbumMatcher({
         />
       )}
 
+      {/* Confirm error */}
+      {confirmError && <p className="am-confirm-error">{confirmError}</p>}
+
       {/* Actions */}
       <div className="am-actions">
         {onSkip && (
-          <button className="am-skip" onClick={onSkip}>Skip</button>
+          <button className="am-skip" onClick={onSkip} disabled={confirmLoading}>Skip</button>
         )}
         <button
           className="am-confirm"
           disabled={!canConfirm}
           onClick={handleConfirm}
         >
-          Confirm match
+          {confirmLoading ? 'Saving…' : 'Confirm match'}
         </button>
       </div>
     </div>
