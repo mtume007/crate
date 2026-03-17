@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, artworkUrl, audioUrl } from './api'
+import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, fetchAllTracks, artworkUrl, audioUrl } from './api'
 import Settings from './Settings'
 import ReviewPanel from './ReviewPanel'
 import AddModal from './components/AddModal'
@@ -48,6 +48,12 @@ interface Track {
   filepath: string
 }
 
+// Minimal shape needed for track-title search
+interface TrackResult {
+  title: string
+  filepath: string
+}
+
 interface Stats {
   tracks: number
   albums: number
@@ -67,6 +73,7 @@ export default function App() {
   const [libraryPath, setLibraryPath] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [trackResults, setTrackResults] = useState<TrackResult[]>([])
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -88,6 +95,8 @@ export default function App() {
       setAlbums(albumData.albums)
       setStats(statsData)
       setLoaded(true)
+      // Load all tracks once for search — fire and forget, non-blocking
+      fetchAllTracks().then(data => setTrackResults(data.tracks)).catch(() => {})
     } catch (e) {
       console.error('Failed to load library:', e)
       setLoaded(true)
@@ -214,17 +223,31 @@ export default function App() {
 
   const pct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0
 
-  const filtered = albums.filter(album => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.toLowerCase()
-    return (
-      album.artist?.toLowerCase().includes(q) ||
-      album.title?.toLowerCase().includes(q) ||
-      album.label?.toLowerCase().includes(q) ||
-      album.catalog_num?.toLowerCase().includes(q) ||
-      album.genre?.toLowerCase().includes(q)
+  const q = searchQuery.trim().toLowerCase()
+
+  const albumMatches = q ? albums.filter(album =>
+    album.artist?.toLowerCase().includes(q) ||
+    album.title?.toLowerCase().includes(q) ||
+    album.label?.toLowerCase().includes(q) ||
+    album.catalog_num?.toLowerCase().includes(q) ||
+    album.genre?.toLowerCase().includes(q)
+  ) : albums
+
+  // Phase 2: if no album matches, search track titles and return their parent albums
+  const trackMatchFallback = albumMatches.length === 0 && q.length > 0
+  let filtered = albumMatches
+  if (trackMatchFallback) {
+    // Build folder→album map for O(1) lookups
+    const folderMap = new Map(albums.map(a => [a.folder_path, a]))
+    const parentFolders = new Set(
+      trackResults
+        .filter(t => t.title?.toLowerCase().includes(q))
+        .map(t => t.filepath.substring(0, t.filepath.lastIndexOf('/')))
     )
-  })
+    filtered = Array.from(parentFolders)
+      .map(f => folderMap.get(f))
+      .filter((a): a is Album => a !== undefined)
+  }
 
   return (
     <div className="app-shell">
@@ -246,11 +269,12 @@ export default function App() {
 
       <header className="titlebar">
         <span className="titlebar-context">
-          {searchQuery.trim()
+          {q
             ? `${filtered.length} album${filtered.length !== 1 ? 's' : ''}`
             : stats.albums > 0 ? `${stats.albums} albums` : 'Crate'}
         </span>
-        {!searchQuery.trim() && stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
+        {!q && stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
+        {trackMatchFallback && filtered.length > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">track match</span></>}
       </header>
 
       <div className="toolbar">

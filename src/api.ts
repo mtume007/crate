@@ -44,6 +44,12 @@ export async function fetchTracks(folderPath: string) {
   return res.json()
 }
 
+export async function fetchAllTracks(limit = 5000) {
+  const res = await fetch(`${BASE}/library/tracks?limit=${limit}`)
+  if (!res.ok) throw new Error("Failed to fetch all tracks")
+  return res.json()
+}
+
 export async function fetchConfig() {
   const res = await fetch(`${BASE}/config`)
   if (!res.ok) throw new Error('Failed to fetch config')
