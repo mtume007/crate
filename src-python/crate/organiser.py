@@ -93,7 +93,7 @@ def organise_library(library_path: str, db, progress_callback=None) -> dict:
     from .scanner import rebuild_albums
 
     library_path = os.path.normpath(os.path.expanduser(library_path))
-    stats = {'moved': 0, 'skipped': 0, 'errors': 0, 'total': 0}
+    stats = {'moved': 0, 'skipped': 0, 'errors': 0, 'not_found': 0, 'total': 0}
 
     # Only touch files that live inside the library path
     tracks = db.query(Track).filter(
@@ -120,7 +120,7 @@ def organise_library(library_path: str, db, progress_callback=None) -> dict:
             try:
                 src = t.filepath
                 if not os.path.exists(src):
-                    stats['errors'] += 1
+                    stats['not_found'] += 1
                     continue
 
                 dest = os.path.join(dest_dir, os.path.basename(src))

@@ -12,7 +12,7 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
   const [tab, setTab] = useState<'ai' | 'library' | 'enrichment'>('ai')
   const [pickingFolder, setPickingFolder] = useState(false)
   const [organising, setOrganising] = useState(false)
-  const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number } | null>(null)
+  const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number; not_found?: number } | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -159,7 +159,9 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
                   </button>
                   {organiseResult && !organising && (
                     <span className="enrich-result">
-                      {organiseResult.moved} moved · {organiseResult.skipped} already sorted · {organiseResult.errors} errors
+                      {organiseResult.moved} moved · {organiseResult.skipped} already sorted
+                      {(organiseResult.not_found ?? 0) > 0 && ` · ${organiseResult.not_found} not found — try Rescan first`}
+                      {(organiseResult.errors ?? 0) > 0 && ` · ${organiseResult.errors} errors`}
                     </span>
                   )}
                 </div>
