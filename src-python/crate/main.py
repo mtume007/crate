@@ -267,50 +267,6 @@ async def start_enrichment(background_tasks: BackgroundTasks):
 def get_enrichment_status():
     return enrichment_status
 
-@app.post('/library/enrich/{album_id}')
-def enrich_single(album_id: int, db: Session = Depends(get_db)):
-    cfg = load_config()
-    token = cfg.get('enrichment', {}).get('discogs_token', '')
-    api_key = cfg.get('ai', {}).get('api_key', '')
-    confidence_threshold = cfg.get('enrichment', {}).get('confidence_threshold', 0.75)
-    if not token:
-        raise HTTPException(status_code=400, detail='No Discogs token configured')
-    if not api_key:
-        raise HTTPException(status_code=400, detail='No AI API key configured')
-    album = db.query(Album).filter(Album.id == album_id).first()
-    if not album:
-        raise HTTPException(status_code=404, detail='Album not found')
-    success = enrich_album(album, db, token, api_key, confidence_threshold)
-    return {'success': success, 'album_id': album_id}
-
-@app.post('/enrich/search')
-def enrich_search(body: dict):
-    """
-    Claude-normalised Discogs search for the single-add / AlbumMatcher flow.
-    Returns top candidates for the user to pick from — no auto-validation.
-    """
-    artist = body.get('artist', '')
-    title  = body.get('title', '')
-    year   = body.get('year')  # informational only, not used in search yet
-
-    cfg       = load_config()
-    api_key   = cfg.get('ai', {}).get('api_key', '')
-    token     = cfg.get('enrichment', {}).get('discogs_token', '')
-
-    if not token:
-        return {'error': 'No Discogs token configured', 'candidates': []}
-
-    # Step 1 — Claude normalises (falls back to basic cleaning if no api_key)
-    normalised   = normalise_query(artist, title, api_key)
-    clean_artist = normalised.get('clean_artist', artist)
-    search_title = normalised.get('search_title', title)
-
-    # Step 2 — Discogs search (master first, then release)
-    results, _ = discogs_search(clean_artist, search_title, token)
-
-    return {'candidates': results[:5]}
-
-
 @app.post('/library/enrich/url')
 def enrich_by_url(payload: dict, db: Session = Depends(get_db)):
     """Enrich an album directly from a Discogs URL (release or master)."""
@@ -367,6 +323,50 @@ def enrich_by_url(payload: dict, db: Session = Depends(get_db)):
 
     db.commit()
     return {'success': True, 'album_id': album_id, 'year': album.enriched_year, 'label': album.enriched_label}
+
+
+@app.post('/library/enrich/{album_id}')
+def enrich_single(album_id: int, db: Session = Depends(get_db)):
+    cfg = load_config()
+    token = cfg.get('enrichment', {}).get('discogs_token', '')
+    api_key = cfg.get('ai', {}).get('api_key', '')
+    confidence_threshold = cfg.get('enrichment', {}).get('confidence_threshold', 0.75)
+    if not token:
+        raise HTTPException(status_code=400, detail='No Discogs token configured')
+    if not api_key:
+        raise HTTPException(status_code=400, detail='No AI API key configured')
+    album = db.query(Album).filter(Album.id == album_id).first()
+    if not album:
+        raise HTTPException(status_code=404, detail='Album not found')
+    success = enrich_album(album, db, token, api_key, confidence_threshold)
+    return {'success': success, 'album_id': album_id}
+
+@app.post('/enrich/search')
+def enrich_search(body: dict):
+    """
+    Claude-normalised Discogs search for the single-add / AlbumMatcher flow.
+    Returns top candidates for the user to pick from — no auto-validation.
+    """
+    artist = body.get('artist', '')
+    title  = body.get('title', '')
+    year   = body.get('year')  # informational only, not used in search yet
+
+    cfg       = load_config()
+    api_key   = cfg.get('ai', {}).get('api_key', '')
+    token     = cfg.get('enrichment', {}).get('discogs_token', '')
+
+    if not token:
+        return {'error': 'No Discogs token configured', 'candidates': []}
+
+    # Step 1 — Claude normalises (falls back to basic cleaning if no api_key)
+    normalised   = normalise_query(artist, title, api_key)
+    clean_artist = normalised.get('clean_artist', artist)
+    search_title = normalised.get('search_title', title)
+
+    # Step 2 — Discogs search (master first, then release)
+    results, _ = discogs_search(clean_artist, search_title, token)
+
+    return {'candidates': results[:5]}
 
 
 @app.get('/library/enrich/candidates')
