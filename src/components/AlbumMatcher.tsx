@@ -19,6 +19,7 @@ interface AlbumMatcherProps {
   trackCount?: number
   onConfirm: (candidate: DiscogsCandidate | null, discogsUrl?: string) => void
   onSkip?: () => void
+  onOpenSettings?: () => void
 }
 
 export default function AlbumMatcher({
@@ -29,14 +30,27 @@ export default function AlbumMatcher({
   trackCount,
   onConfirm,
   onSkip,
+  onOpenSettings,
 }: AlbumMatcherProps) {
   const [candidates, setCandidates] = useState<DiscogsCandidate[]>([])
   const [selected, setSelected] = useState<number | 'none' | null>(null)
   const [manualUrl, setManualUrl] = useState('')
-  const [searching, setSearching] = useState(true)
+  const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // null = still checking, true = token missing, false = token present
+  const [noToken, setNoToken] = useState<boolean | null>(null)
 
+  // Check for Discogs token before attempting any search
   useEffect(() => {
+    fetch('http://localhost:8000/config')
+      .then(r => r.json())
+      .then(c => setNoToken(!c.enrichment?.discogs_token))
+      .catch(() => setNoToken(true))
+  }, [])
+
+  // Fire search only once we know a token is present
+  useEffect(() => {
+    if (noToken === null || noToken) return
     setSearching(true)
     setSelected(null)
     setCandidates([])
@@ -56,7 +70,7 @@ export default function AlbumMatcher({
         setError('Discogs search failed — check your token in Settings')
         setSearching(false)
       })
-  }, [artist, title])
+  }, [artist, title, noToken])
 
   const canConfirm =
     selected === 'none' ? manualUrl.trim().length > 0 : selected !== null
@@ -94,18 +108,37 @@ export default function AlbumMatcher({
 
       {/* Candidates */}
       <div className="am-candidates">
-        {searching && (
+        {/* Checking config */}
+        {noToken === null && (
+          <div className="am-searching">
+            <span className="am-dot" />
+            <span>Checking configuration…</span>
+          </div>
+        )}
+
+        {/* No Discogs token */}
+        {noToken === true && (
+          <div className="am-no-token">
+            <span>Add your Discogs token in Settings to enable matching.</span>
+            {onOpenSettings && (
+              <button className="am-settings-link" onClick={onOpenSettings}>Open Settings</button>
+            )}
+          </div>
+        )}
+
+        {/* Has token — normal search flow */}
+        {noToken === false && searching && (
           <div className="am-searching">
             <span className="am-dot" />
             <span>Searching Discogs…</span>
           </div>
         )}
 
-        {!searching && error && (
+        {noToken === false && !searching && error && (
           <p className="am-error">{error}</p>
         )}
 
-        {!searching && !error && (
+        {noToken === false && !searching && !error && (
           <>
             {candidates.map(c => (
               <button

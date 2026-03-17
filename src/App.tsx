@@ -88,6 +88,7 @@ export default function App() {
   } | null>(null)
   const [backendError, setBackendError] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<'artist' | 'year-desc' | 'year-asc'>('artist')
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -252,6 +253,16 @@ export default function App() {
       .filter((a): a is Album => a !== undefined)
   }
 
+  // Client-side sort applied after filtering
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortOrder === 'artist') {
+      return (a.artist || '').localeCompare(b.artist || '', undefined, { sensitivity: 'base' })
+    }
+    const ay = parseInt(a.enriched_year || a.year || '0')
+    const by = parseInt(b.enriched_year || b.year || '0')
+    return sortOrder === 'year-desc' ? by - ay : ay - by
+  })
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarExpanded ? 'expanded' : ''}`}
@@ -287,6 +298,12 @@ export default function App() {
           <button className="vs-btn" title="List"><IconList size={12} /></button>
         </div>
         <div className="toolbar-sep" />
+        <div className="sort-switcher">
+          <button className={`ss-btn ${sortOrder === 'artist' ? 'active' : ''}`} title="Artist A–Z" onClick={() => setSortOrder('artist')}>A–Z</button>
+          <button className={`ss-btn ${sortOrder === 'year-desc' ? 'active' : ''}`} title="Year newest first" onClick={() => setSortOrder('year-desc')}>↓YR</button>
+          <button className={`ss-btn ${sortOrder === 'year-asc' ? 'active' : ''}`} title="Year oldest first" onClick={() => setSortOrder('year-asc')}>↑YR</button>
+        </div>
+        <div className="toolbar-sep" />
         <div className="search-bar">
           <IconSearch size={11} />
           <input
@@ -308,7 +325,7 @@ export default function App() {
       </div>
 
       <main className="main-content">
-        {activeView === 'library' && <LibraryView albums={filtered} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} hasLibrary={albums.length > 0} searchQuery={q} />}
+        {activeView === 'library' && <LibraryView albums={sorted} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} hasLibrary={albums.length > 0} searchQuery={q} />}
       </main>
 
       <Playbar
@@ -349,6 +366,7 @@ export default function App() {
         onConfirm={handleMatch}
         onSkip={handleSkipMatch}
         onClose={() => setPendingAlbum(null)}
+        onOpenSettings={() => { setPendingAlbum(null); setShowSettings(true) }}
       />
       {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
 

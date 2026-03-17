@@ -16,9 +16,10 @@ interface AddModalProps {
   onConfirm: (albumId: number, candidate: DiscogsCandidate | null, discogsUrl?: string) => void
   onSkip: (albumId: number) => void
   onClose: () => void
+  onOpenSettings?: () => void
 }
 
-export default function AddModal({ album, onConfirm, onSkip, onClose }: AddModalProps) {
+export default function AddModal({ album, onConfirm, onSkip, onClose, onOpenSettings }: AddModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export default function AddModal({ album, onConfirm, onSkip, onClose }: AddModal
           trackCount={album.trackCount}
           onConfirm={(candidate, url) => onConfirm(album.albumId, candidate, url)}
           onSkip={() => onSkip(album.albumId)}
+          onOpenSettings={onOpenSettings}
         />
       </div>
     </div>
