@@ -20,7 +20,7 @@ import os
 import re
 import shutil
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -37,22 +37,54 @@ def _sanitise(name: str) -> str:
     return name[:200] or '_'
 
 
+def _normalise(name: str) -> str:
+    """Normalise an artist/album string for comparison (no diacritics, no punct)."""
+    import unicodedata
+    name = unicodedata.normalize('NFKD', name)
+    name = name.encode('ascii', 'ignore').decode('ascii')
+    name = re.sub(r'[^a-z0-9 ]', ' ', name.lower())
+    return re.sub(r'\s+', ' ', name).strip()
+
+
+def _canonical_artist(track_list: list) -> str:
+    """
+    Pick the single best artist string to use as the folder name.
+
+    Priority:
+      1. album_artist tag (if consistent across tracks and not a VA keyword)
+      2. Most common track artist
+      3. 'Unknown Artist'
+    """
+    # Collect album_artist values
+    aa_values = [t.album_artist.strip() for t in track_list if t.album_artist and t.album_artist.strip()]
+    if aa_values:
+        most_common_aa, _ = Counter(aa_values).most_common(1)[0]
+        if most_common_aa.lower() not in VA_KEYWORDS:
+            return most_common_aa
+
+    # Fall back to most common track artist
+    ta_values = [t.artist.strip() for t in track_list if t.artist and t.artist.strip()]
+    if ta_values:
+        return Counter(ta_values).most_common(1)[0][0]
+
+    return 'Unknown Artist'
+
+
 def _is_va(track_list: list) -> bool:
     """Return True if this album is a Various Artists compilation."""
-    artists = set()
-    for t in track_list:
-        aa = (t.album_artist or '').strip()
-        ta = (t.artist or '').strip()
-        val = aa or ta
-        if val:
-            artists.add(val.lower())
-
-    # Explicit VA tag
-    if any(a in VA_KEYWORDS for a in artists):
+    # Check album_artist tags first — explicit VA flag
+    aa_values = {(t.album_artist or '').strip().lower() for t in track_list if t.album_artist and t.album_artist.strip()}
+    if any(a in VA_KEYWORDS for a in aa_values):
         return True
 
-    # Three or more distinct contributing artists (with no shared root) → compilation
-    if len(artists) >= 3:
+    # If all tracks share the same non-empty album_artist → definitely not VA
+    non_empty_aa = [t.album_artist.strip() for t in track_list if t.album_artist and t.album_artist.strip()]
+    if non_empty_aa and len(set(n.lower() for n in non_empty_aa)) == 1:
+        return False
+
+    # Count distinct contributing track artists (normalised)
+    ta_normalised = {_normalise(t.artist) for t in track_list if t.artist and t.artist.strip()}
+    if len(ta_normalised) >= 3:
         return True
 
     return False
@@ -78,7 +110,7 @@ def _target_dir(track_list: list, library_path: str) -> str:
             _sanitise(album_title)
         )
 
-    display_artist = _sanitise(best.album_artist or best.artist or 'Unknown Artist')
+    display_artist = _sanitise(_canonical_artist(track_list))
     display_album  = _sanitise(album_title)
     return os.path.join(library_path, 'Complete Albums', display_artist, display_album)
 
@@ -87,7 +119,10 @@ def organise_library(library_path: str, db, progress_callback=None) -> dict:
     """
     Organise all tracks under library_path into the canonical folder structure.
 
-    Returns a stats dict: { moved, skipped, errors, total }.
+    Groups tracks by album name only (not album+artist) so that compilations
+    where each track has a different artist tag are still kept together.
+
+    Returns a stats dict: { moved, skipped, errors, not_found, total }.
     """
     from .database import Track
     from .scanner import rebuild_albums
@@ -101,18 +136,18 @@ def organise_library(library_path: str, db, progress_callback=None) -> dict:
     ).all()
     stats['total'] = len(tracks)
 
-    # Group tracks by (normalised_album, normalised_album_artist_or_artist)
-    groups: dict[tuple, list] = defaultdict(list)
+    # Group tracks by normalised album name only.
+    # Tracks with no album tag go to the singles bucket.
+    groups: dict[str, list] = defaultdict(list)
     for t in tracks:
-        album_key  = (t.album or '').lower().strip()
-        artist_key = (t.album_artist or t.artist or '').lower().strip()
+        album_key = (t.album or '').lower().strip()
         if album_key:
-            groups[(album_key, artist_key)].append(t)
+            groups[album_key].append(t)
         else:
-            groups[('__singles__', '')].append(t)
+            groups['__singles__'].append(t)
 
     total_groups = len(groups)
-    for idx, ((album_key, _), track_list) in enumerate(groups.items()):
+    for idx, (album_key, track_list) in enumerate(groups.items()):
         dest_dir = _target_dir(track_list, library_path)
         os.makedirs(dest_dir, exist_ok=True)
 
