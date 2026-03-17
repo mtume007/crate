@@ -406,6 +406,23 @@ def skip_album(album_id: int, db: Session = Depends(get_db)):
     return {'success': True}
 
 
+# ── Album metadata PATCH ──────────────────────────────────────────────────────
+
+@app.patch('/library/albums/{album_id}')
+def update_album(album_id: int, payload: dict, db: Session = Depends(get_db)):
+    album = db.query(Album).filter(Album.id == album_id).first()
+    if not album:
+        raise HTTPException(status_code=404, detail='Album not found')
+    allowed = {'genre', 'year', 'label', 'catalog_num', 'country', 'title', 'artist'}
+    for key, value in payload.items():
+        if key in allowed:
+            setattr(album, key, value)
+    from datetime import datetime
+    album.updated_at = datetime.utcnow()
+    db.commit()
+    return {'success': True}
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 @app.get("/config")

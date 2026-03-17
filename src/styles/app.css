@@ -1236,7 +1236,7 @@
 .list-header,
 .list-row {
   display: grid;
-  grid-template-columns: 52px 1.2fr 1.4fr 62px 1fr 1fr 48px;
+  grid-template-columns: 52px 1.2fr 1.4fr 62px 1fr 1.4fr 48px 48px;
   align-items: center;
   gap: 0 12px;
   padding: 0 16px;
@@ -1291,6 +1291,105 @@
   color: rgba(var(--ink),0.45);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* Genre chips in read mode */
+.lr-genre-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  overflow: hidden; max-height: 38px;
+}
+.lr-chip {
+  font-family: var(--font-mono); font-size: 9px;
+  color: rgba(var(--ink),0.55);
+  background: rgba(var(--ink),0.06);
+  border: 1px solid rgba(var(--ink),0.10);
+  border-radius: 3px; padding: 1px 5px;
+}
+
+/* Edit mode row */
+.list-row--editing {
+  background: rgba(var(--c-accent-dim),1);
+  border-left-color: var(--c-accent) !important;
+  height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px;
+  cursor: default;
+}
+.list-row--editing:hover { background: rgba(var(--c-accent-dim),1); }
+
+.lr-edit-input {
+  font-family: var(--font-mono); font-size: 10px;
+  color: rgba(var(--ink),0.82);
+  background: rgba(var(--ink),0.06);
+  border: 1px solid rgba(var(--ink),0.14);
+  border-radius: 4px; padding: 4px 6px;
+  width: 100%; box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.lr-edit-input:focus { border-color: rgba(var(--c-accent),0.5); }
+
+/* Chip input */
+.chip-input {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  background: rgba(var(--ink),0.06);
+  border: 1px solid rgba(var(--ink),0.14);
+  border-radius: 4px; padding: 3px 5px;
+  min-height: 30px; box-sizing: border-box;
+  cursor: text;
+  transition: border-color 0.12s ease;
+}
+.chip-input:focus-within { border-color: rgba(var(--c-accent),0.5); }
+.chip-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--font-mono); font-size: 9px;
+  color: rgba(var(--ink),0.82);
+  background: rgba(var(--c-accent),0.14);
+  border: 1px solid rgba(var(--c-accent),0.25);
+  border-radius: 3px; padding: 1px 4px 1px 5px;
+}
+.chip-remove {
+  background: none; border: none; padding: 0; margin: 0;
+  color: rgba(var(--ink),0.4); font-size: 11px; line-height: 1;
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+.chip-remove:hover { color: rgba(var(--ink),0.85); }
+.chip-text-input {
+  font-family: var(--font-mono); font-size: 10px;
+  color: rgba(var(--ink),0.75);
+  background: none; border: none; outline: none;
+  padding: 0; min-width: 60px; flex: 1;
+}
+.chip-text-input::placeholder { color: rgba(var(--ink),0.22); }
+
+/* Row action buttons */
+.lr-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+}
+.lr-action-btn {
+  width: 22px; height: 22px; border-radius: 4px;
+  border: none; background: none; cursor: pointer;
+  font-size: 13px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.lr-edit {
+  color: rgba(var(--ink),0.0);
+  background: transparent;
+}
+.list-row:hover .lr-edit {
+  color: rgba(var(--ink),0.3);
+}
+.lr-edit:hover { color: rgba(var(--ink),0.7) !important; background: rgba(var(--ink),0.06) !important; }
+.lr-save {
+  color: var(--c-accent);
+  background: rgba(var(--c-accent),0.10);
+}
+.lr-save:hover { background: rgba(var(--c-accent),0.20); }
+.lr-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.lr-cancel {
+  color: rgba(var(--ink),0.45);
+  background: rgba(var(--ink),0.06);
+}
+.lr-cancel:hover { color: rgba(var(--ink),0.8); background: rgba(var(--ink),0.10); }
 
 /* ── Coverflow view ──────────────────────────────────────────────────────── */
 .coverflow-wrap {

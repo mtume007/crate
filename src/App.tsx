@@ -327,7 +327,7 @@ export default function App() {
             albums={sorted} loaded={loaded} scanning={scanning}
             onScan={() => handleScan()} onAlbumClick={setSelectedAlbum}
             onPlayTrack={playTrack} hasLibrary={albums.length > 0}
-            searchQuery={q} viewMode={viewMode}
+            searchQuery={q} viewMode={viewMode} onAlbumUpdate={loadLibrary}
           />
         )}
       </main>
@@ -419,10 +419,11 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
   )
 }
 
-function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode }: {
+function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate }: {
   albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
   hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow'
+  onAlbumUpdate: () => void
 }) {
   if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
   if (albums.length === 0 && !scanning) {
@@ -445,7 +446,7 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
       </div>
     )
   }
-  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} />
+  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} />
   if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} />
   return (
     <div className="library-grid-wrap">
@@ -478,7 +479,9 @@ function AlbumCard({ album, onClick }: { album: Album; onClick: (a: Album) => vo
 
 // ── List View ───────────────────────────────────────────────────────────────
 
-function ListView({ albums, onAlbumClick }: { albums: Album[]; onAlbumClick: (a: Album) => void }) {
+function ListView({ albums, onAlbumClick, onAlbumUpdate }: {
+  albums: Album[]; onAlbumClick: (a: Album) => void; onAlbumUpdate: () => void
+}) {
   return (
     <div className="list-view-wrap">
       <div className="list-header">
@@ -487,19 +490,115 @@ function ListView({ albums, onAlbumClick }: { albums: Album[]; onAlbumClick: (a:
         <span className="lh-cell">Title</span>
         <span className="lh-cell">Year</span>
         <span className="lh-cell">Label</span>
-        <span className="lh-cell">Genre</span>
+        <span className="lh-cell">Genre / Tags</span>
         <span className="lh-cell">Tracks</span>
+        <span />
       </div>
-      {albums.map(album => <ListRow key={album.id} album={album} onClick={onAlbumClick} />)}
+      {albums.map(album => (
+        <ListRow key={album.id} album={album} onClick={onAlbumClick} onUpdate={onAlbumUpdate} />
+      ))}
     </div>
   )
 }
 
-function ListRow({ album, onClick }: { album: Album; onClick: (a: Album) => void }) {
-  const [imgError, setImgError] = useState(false)
-  const url = artworkUrl(album.artwork_url)
+// Chip input: comma-separated string ↔ visual pill chips
+function ChipInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const tags    = value ? value.split(',').map(t => t.trim()).filter(Boolean) : []
+  const [input, setInput] = useState('')
+
+  const addTag = (raw: string) => {
+    const trimmed = raw.trim().replace(/,+$/, '')
+    if (!trimmed) return
+    const next = [...tags, trimmed]
+    onChange(next.join(', '))
+    setInput('')
+  }
+
+  const removeTag = (i: number) => {
+    const next = tags.filter((_, idx) => idx !== i)
+    onChange(next.join(', '))
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(input) }
+    if (e.key === 'Backspace' && input === '' && tags.length > 0) removeTag(tags.length - 1)
+  }
+
   return (
-    <div className="list-row" onClick={() => onClick(album)}>
+    <div className="chip-input" onClick={e => e.stopPropagation()}>
+      {tags.map((tag, i) => (
+        <span key={i} className="chip-tag">
+          {tag}
+          <button className="chip-remove" onClick={() => removeTag(i)} tabIndex={-1}>×</button>
+        </span>
+      ))}
+      <input
+        className="chip-text-input"
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={() => { if (input) addTag(input) }}
+        placeholder={tags.length === 0 ? 'Add tag…' : ''}
+      />
+    </div>
+  )
+}
+
+function ListRow({ album, onClick, onUpdate }: {
+  album: Album; onClick: (a: Album) => void; onUpdate: () => void
+}) {
+  const [imgError, setImgError] = useState(false)
+  const [editing, setEditing]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+
+  // Editable field state — initialise from album
+  const [year,  setYear]  = useState(album.enriched_year  || album.year  || '')
+  const [label, setLabel] = useState(album.enriched_label || album.label || '')
+  const [genre, setGenre] = useState(album.enriched_genre || album.genre || '')
+
+  // Keep local state fresh if album prop changes
+  useEffect(() => {
+    setYear (album.enriched_year  || album.year  || '')
+    setLabel(album.enriched_label || album.label || '')
+    setGenre(album.enriched_genre || album.genre || '')
+  }, [album.id, album.enriched_year, album.year, album.enriched_label, album.label, album.enriched_genre, album.genre])
+
+  const url = artworkUrl(album.artwork_url)
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditing(true)
+  }
+
+  const cancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Revert
+    setYear (album.enriched_year  || album.year  || '')
+    setLabel(album.enriched_label || album.label || '')
+    setGenre(album.enriched_genre || album.genre || '')
+    setEditing(false)
+  }
+
+  const saveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSaving(true)
+    try {
+      await fetch(`http://localhost:8000/library/albums/${album.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, label, genre }),
+      })
+      await onUpdate()
+    } catch { /* silent — optimistic UI already shows new values */ }
+    setSaving(false)
+    setEditing(false)
+  }
+
+  return (
+    <div
+      className={`list-row${editing ? ' list-row--editing' : ''}`}
+      onClick={() => { if (!editing) onClick(album) }}
+    >
       <div className="lr-thumb">
         {url && !imgError
           ? <img src={url} alt="" onError={() => setImgError(true)} />
@@ -507,10 +606,54 @@ function ListRow({ album, onClick }: { album: Album; onClick: (a: Album) => void
       </div>
       <span className="lr-artist">{album.artist || '—'}</span>
       <span className="lr-title">{album.title || '—'}</span>
-      <span className="lr-year">{album.enriched_year || album.year || '—'}</span>
-      <span className="lr-label">{album.enriched_label || album.label || '—'}</span>
-      <span className="lr-genre">{album.enriched_genre || album.genre || '—'}</span>
+
+      {editing ? (
+        <input
+          className="lr-edit-input"
+          value={year} onChange={e => setYear(e.target.value)}
+          onClick={e => e.stopPropagation()}
+          placeholder="Year"
+        />
+      ) : (
+        <span className="lr-year">{album.enriched_year || album.year || '—'}</span>
+      )}
+
+      {editing ? (
+        <input
+          className="lr-edit-input"
+          value={label} onChange={e => setLabel(e.target.value)}
+          onClick={e => e.stopPropagation()}
+          placeholder="Label"
+        />
+      ) : (
+        <span className="lr-label">{album.enriched_label || album.label || '—'}</span>
+      )}
+
+      {editing ? (
+        <ChipInput value={genre} onChange={setGenre} />
+      ) : (
+        <div className="lr-genre-chips">
+          {(album.enriched_genre || album.genre || '').split(',').map(t => t.trim()).filter(Boolean).map((t, i) => (
+            <span key={i} className="lr-chip">{t}</span>
+          ))}
+          {!(album.enriched_genre || album.genre) && <span className="lr-genre">—</span>}
+        </div>
+      )}
+
       <span className="lr-tracks">{album.track_count != null ? String(album.track_count) : '—'}</span>
+
+      <div className="lr-actions" onClick={e => e.stopPropagation()}>
+        {editing ? (
+          <>
+            <button className="lr-action-btn lr-save" onClick={saveEdit} disabled={saving} title="Save">
+              {saving ? '…' : '✓'}
+            </button>
+            <button className="lr-action-btn lr-cancel" onClick={cancelEdit} title="Cancel">✕</button>
+          </>
+        ) : (
+          <button className="lr-action-btn lr-edit" onClick={startEdit} title="Edit tags">✎</button>
+        )}
+      </div>
     </div>
   )
 }
@@ -529,6 +672,12 @@ function CoverflowView({ albums, onPlayTrack }: {
   const [activeIdx, setActiveIdx] = useState(0)
   const [tracks, setTracks]       = useState<Track[]>([])
   const [tracksLoading, setTracksLoading] = useState(false)
+
+  // Drag state
+  const [dragOffsetPx, setDragOffsetPx] = useState(0)
+  const [isDragging, setIsDragging]     = useState(false)
+  const dragRef    = useRef<{ startX: number; lastX: number; lastTime: number; velocity: number } | null>(null)
+  const didDragRef = useRef(false)
 
   const safeIdx     = albums.length > 0 ? Math.min(Math.max(activeIdx, 0), albums.length - 1) : 0
   const activeAlbum = albums[safeIdx]
@@ -555,18 +704,59 @@ function CoverflowView({ albums, onPlayTrack }: {
     return () => window.removeEventListener('keydown', handler)
   }, [albums.length])
 
+  // Pointer drag handlers
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    didDragRef.current = false
+    dragRef.current = { startX: e.clientX, lastX: e.clientX, lastTime: Date.now(), velocity: 0 }
+    setIsDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    const now = Date.now()
+    const dt  = now - dragRef.current.lastTime
+    if (dt > 0) dragRef.current.velocity = (e.clientX - dragRef.current.lastX) / dt
+    dragRef.current.lastX    = e.clientX
+    dragRef.current.lastTime = now
+    const delta = e.clientX - dragRef.current.startX
+    if (Math.abs(delta) > 5) didDragRef.current = true
+    setDragOffsetPx(delta)
+  }
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    const rawOffset   = e.clientX - dragRef.current.startX
+    const velocity    = dragRef.current.velocity        // px/ms
+    const projected   = rawOffset + velocity * 280      // coast ~280ms worth
+    const stepsToMove = -Math.round(projected / CF_STEP)
+    setActiveIdx(i => Math.min(albums.length - 1, Math.max(0, i + stepsToMove)))
+    setDragOffsetPx(0)
+    setIsDragging(false)
+    dragRef.current = null
+    setTimeout(() => { didDragRef.current = false }, 50)
+  }
+
   return (
     <div className="coverflow-wrap">
 
       {/* Artwork stage */}
-      <div className="coverflow-stage">
+      <div
+        className="coverflow-stage"
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
         {albums.map((album, idx) => {
-          const dist = idx - safeIdx
-          const abs  = Math.abs(dist)
+          const dist  = idx - safeIdx
+          const abs   = Math.abs(dist)
           if (abs > 3) return null
           const scale   = CF_SCALE[abs]
           const opacity = CF_OPAC[abs]
-          const offsetX = dist * CF_STEP
+          const offsetX = dist * CF_STEP + (isDragging ? dragOffsetPx : 0)
           const url = artworkUrl(album.artwork_url)
           return (
             <div
@@ -577,8 +767,9 @@ function CoverflowView({ albums, onPlayTrack }: {
                 transform: `translateX(calc(-50% + ${offsetX}px)) translateY(-50%) scale(${scale})`,
                 opacity,
                 zIndex: 10 - abs,
+                transition: isDragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease',
               }}
-              onClick={() => { if (dist !== 0) setActiveIdx(idx) }}
+              onClick={() => { if (!didDragRef.current && dist !== 0) setActiveIdx(idx) }}
             >
               {url
                 ? <img src={url} alt={album.title} className="cf-art" />
