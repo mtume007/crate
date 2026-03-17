@@ -93,10 +93,10 @@ export default function AlbumMatcher({
         const resourceType = candidate?.type === 'master' ? 'master' : 'release'
         discogsUrl = `https://www.discogs.com/${resourceType}/${candidate?.id}`
       }
-      const res = await fetch(`http://localhost:8000/library/enrich/url/${albumId}`, {
+      const res = await fetch('http://localhost:8000/library/enrich/url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: discogsUrl }),
+        body: JSON.stringify({ album_id: albumId, url: discogsUrl }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
