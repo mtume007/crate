@@ -16,4 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
 
   platform: process.platform,
+
+  // Show a file or folder in Finder / Explorer
+  showInFinder: (filePath) => ipcRenderer.send('show-in-finder', filePath),
 })

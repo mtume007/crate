@@ -1577,3 +1577,50 @@
 [data-theme="light"] .main-content::before {
   display: none;
 }
+
+/* ── Context Menu ────────────────────────────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--c-card);
+  border: 1px solid rgba(var(--ink),0.12);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+  min-width: 200px;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.ctx-label {
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  color: rgba(var(--ink),0.35);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.ctx-sep {
+  height: 1px;
+  background: rgba(var(--ink),0.08);
+  margin: 4px 0;
+}
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(var(--ink),0.82);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.1s ease;
+}
+.ctx-item:hover { background: rgba(var(--ink),0.06); }
+.ctx-item--danger { color: rgba(var(--c-error),0.85); }
+.ctx-item--danger:hover { background: rgba(var(--c-error),0.08); }

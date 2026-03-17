@@ -92,6 +92,9 @@ export default function App() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'artist' | 'year-desc' | 'year-asc'>('artist')
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'coverflow'>('grid')
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; album?: Album; track?: Track; trackAlbum?: Album
+  } | null>(null)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -193,6 +196,31 @@ export default function App() {
   const changeVolume = (v: number) => {
     setVolume(v)
     if (audioRef.current) audioRef.current.volume = v
+  }
+
+  const removeAlbum = async (albumId: number) => {
+    try {
+      await fetch(`http://localhost:8000/library/albums/${albumId}`, { method: 'DELETE' })
+      if (selectedAlbum?.id === albumId) setSelectedAlbum(null)
+      if (currentAlbum?.id === albumId) {
+        audioRef.current?.pause()
+        setCurrentTrack(null)
+        setCurrentAlbum(null)
+        setIsPlaying(false)
+      }
+      await loadLibrary()
+    } catch { /* silent */ }
+  }
+
+  const showInFinder = (path: string) => {
+    ;(window as any).electronAPI?.showInFinder(path)
+  }
+
+  const playAlbum = async (album: Album) => {
+    try {
+      const data = await fetchTracks(album.folder_path)
+      if (data.tracks.length > 0) playTrack(data.tracks[0], data.tracks, album)
+    } catch { /* silent */ }
   }
 
   useEffect(() => {
@@ -334,6 +362,8 @@ export default function App() {
             onPlayTrack={playTrack} hasLibrary={albums.length > 0}
             searchQuery={q} viewMode={viewMode} onAlbumUpdate={loadLibrary}
             currentAlbum={currentAlbum}
+            onAlbumContextMenu={(album, e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, album }) }}
+            onTrackContextMenu={(track, trackAlbum, e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, track, trackAlbum }) }}
           />
         )}
       </main>
@@ -384,6 +414,17 @@ export default function App() {
       />
       {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
 
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x} y={contextMenu.y}
+          album={contextMenu.album} track={contextMenu.track} trackAlbum={contextMenu.trackAlbum}
+          onClose={() => setContextMenu(null)}
+          onShowInFinder={showInFinder}
+          onRemove={removeAlbum}
+          onPlayAlbum={playAlbum}
+        />
+      )}
+
       {backendError && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 400,
@@ -425,11 +466,13 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
   )
 }
 
-function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate, currentAlbum }: {
+function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate, currentAlbum, onAlbumContextMenu, onTrackContextMenu }: {
   albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
   hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow'
   onAlbumUpdate: () => void; currentAlbum: Album | null
+  onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
+  onTrackContextMenu: (track: Track, album: Album, e: React.MouseEvent) => void
 }) {
   if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
   if (albums.length === 0 && !scanning) {
@@ -452,24 +495,24 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
       </div>
     )
   }
-  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} currentAlbumId={currentAlbum?.id ?? null} />
-  if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} currentAlbumId={currentAlbum?.id ?? null} />
+  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} />
+  if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} onTrackContextMenu={onTrackContextMenu} />
   return (
     <div className="library-grid-wrap">
       <div className="library-grid">
-        {albums.map(album => <AlbumCard key={album.id} album={album} onClick={onAlbumClick} isPlaying={album.id === currentAlbum?.id} />)}
+        {albums.map(album => <AlbumCard key={album.id} album={album} onClick={onAlbumClick} isPlaying={album.id === currentAlbum?.id} onContextMenu={e => onAlbumContextMenu(album, e)} />)}
       </div>
     </div>
   )
 }
 
-function AlbumCard({ album, onClick, isPlaying }: { album: Album; onClick: (a: Album) => void; isPlaying?: boolean }) {
+function AlbumCard({ album, onClick, isPlaying, onContextMenu }: { album: Album; onClick: (a: Album) => void; isPlaying?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const [imgError, setImgError] = useState(false)
   const url = artworkUrl(album.artwork_url)
   const meta = [album.artist, album.label, album.year].filter(Boolean).join(' · ')
 
   return (
-    <div className={`album-card${isPlaying ? ' album-card--playing' : ''}`} onClick={() => onClick(album)}>
+    <div className={`album-card${isPlaying ? ' album-card--playing' : ''}`} onClick={() => onClick(album)} onContextMenu={onContextMenu}>
       <div className="album-art">
         {url && !imgError
           ? <img src={url} alt={album.title} onError={() => setImgError(true)} />
@@ -485,8 +528,9 @@ function AlbumCard({ album, onClick, isPlaying }: { album: Album; onClick: (a: A
 
 // ── List View ───────────────────────────────────────────────────────────────
 
-function ListView({ albums, onAlbumClick, onAlbumUpdate, currentAlbumId }: {
+function ListView({ albums, onAlbumClick, onAlbumUpdate, currentAlbumId, onAlbumContextMenu }: {
   albums: Album[]; onAlbumClick: (a: Album) => void; onAlbumUpdate: () => void; currentAlbumId: number | null
+  onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
 }) {
   return (
     <div className="list-view-wrap">
@@ -501,7 +545,7 @@ function ListView({ albums, onAlbumClick, onAlbumUpdate, currentAlbumId }: {
         <span />
       </div>
       {albums.map(album => (
-        <ListRow key={album.id} album={album} onClick={onAlbumClick} onUpdate={onAlbumUpdate} isPlaying={album.id === currentAlbumId} />
+        <ListRow key={album.id} album={album} onClick={onAlbumClick} onUpdate={onAlbumUpdate} isPlaying={album.id === currentAlbumId} onContextMenu={e => onAlbumContextMenu(album, e)} />
       ))}
     </div>
   )
@@ -550,8 +594,8 @@ function ChipInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-function ListRow({ album, onClick, onUpdate, isPlaying }: {
-  album: Album; onClick: (a: Album) => void; onUpdate: () => void; isPlaying?: boolean
+function ListRow({ album, onClick, onUpdate, isPlaying, onContextMenu }: {
+  album: Album; onClick: (a: Album) => void; onUpdate: () => void; isPlaying?: boolean; onContextMenu?: (e: React.MouseEvent) => void
 }) {
   const [imgError, setImgError] = useState(false)
   const [editing, setEditing]   = useState(false)
@@ -604,6 +648,7 @@ function ListRow({ album, onClick, onUpdate, isPlaying }: {
     <div
       className={`list-row${editing ? ' list-row--editing' : ''}${isPlaying && !editing ? ' list-row--playing' : ''}`}
       onClick={() => { if (!editing) onClick(album) }}
+      onContextMenu={onContextMenu}
     >
       <div className="lr-thumb">
         {url && !imgError
@@ -679,10 +724,12 @@ function interpAt(vals: readonly number[], t: number): number {
   return vals[lo] + (vals[lo + 1] - vals[lo]) * (t - lo)
 }
 
-function CoverflowView({ albums, onPlayTrack, currentAlbumId }: {
+function CoverflowView({ albums, onPlayTrack, currentAlbumId, onAlbumContextMenu, onTrackContextMenu }: {
   albums: Album[]
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
   currentAlbumId: number | null
+  onAlbumContextMenu?: (album: Album, e: React.MouseEvent) => void
+  onTrackContextMenu?: (track: Track, album: Album, e: React.MouseEvent) => void
 }) {
   const [activeIdx, setActiveIdx]   = useState(0)
   const [trackIdx,  setTrackIdx]    = useState(-1)   // -1 = no track focused
@@ -831,6 +878,7 @@ function CoverflowView({ albums, onPlayTrack, currentAlbumId }: {
                 transition: isDragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease',
               }}
               onClick={() => { if (!didDragRef.current && !isActive) setActiveIdx(idx) }}
+              onContextMenu={e => { if (!didDragRef.current) onAlbumContextMenu?.(album, e) }}
             >
               {url
                 ? <img src={url} alt={album.title} className="cf-art" draggable={false} />
@@ -877,6 +925,7 @@ function CoverflowView({ albums, onPlayTrack, currentAlbumId }: {
                 onClick={() => { setTrackIdx(i); onPlayTrack(track, tracks, activeAlbum) }}
                 onMouseEnter={() => setTrackIdx(i)}
                 onMouseLeave={() => setTrackIdx(-1)}
+                onContextMenu={e => onTrackContextMenu?.(track, activeAlbum, e)}
               >
                 <span className="cf-track-num">
                   {track.track_number ? track.track_number.split('/')[0].padStart(2, ' ') : String(i + 1).padStart(2, ' ')}
@@ -901,6 +950,83 @@ function ArtworkPlaceholder({ title }: { title: string }) {
   return (
     <div className="artwork-placeholder" style={{ background: color }}>
       <span className="artwork-initials">{(title || '?').charAt(0).toUpperCase()}</span>
+    </div>
+  )
+}
+
+// ── Context Menu ─────────────────────────────────────────────────────────────
+
+function ContextMenu({ x, y, album, track, trackAlbum: _trackAlbum, onClose, onShowInFinder, onRemove, onPlayAlbum }: {
+  x: number; y: number
+  album?: Album; track?: Track; trackAlbum?: Album
+  onClose: () => void
+  onShowInFinder: (path: string) => void
+  onRemove: (albumId: number) => void
+  onPlayAlbum: (album: Album) => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
+    }
+    // Use capture phase so it fires before any onClick handlers that might open a new menu
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [onClose])
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  // Clamp to viewport so menu doesn't overflow
+  const MENU_W = 200
+  const MENU_H = album ? 112 : 72
+  const cx = Math.min(x, window.innerWidth  - MENU_W - 8)
+  const cy = Math.min(y, window.innerHeight - MENU_H - 8)
+
+  const isAlbumMenu = !!album
+  const targetPath = album ? album.folder_path : (track?.filepath ?? '')
+  const targetLabel = album ? (album.title || 'Album') : (track?.title || 'Track')
+
+  const handleShowInFinder = () => { onShowInFinder(targetPath); onClose() }
+  const handlePlay = () => {
+    if (album) { onPlayAlbum(album); onClose() }
+    // Track play is handled via click — context menu just shows in finder / remove
+  }
+  const handleRemove = () => {
+    if (album) { onRemove(album.id); onClose() }
+  }
+
+  return (
+    <div
+      ref={menuRef}
+      className="ctx-menu"
+      style={{ left: cx, top: cy }}
+      onContextMenu={e => e.preventDefault()}
+    >
+      <div className="ctx-label">{targetLabel}</div>
+      <div className="ctx-sep" />
+      <button className="ctx-item" onClick={handleShowInFinder}>
+        Show in Finder
+      </button>
+      {isAlbumMenu && (
+        <button className="ctx-item" onClick={handlePlay}>
+          Play
+        </button>
+      )}
+      {isAlbumMenu && (
+        <>
+          <div className="ctx-sep" />
+          <button className="ctx-item ctx-item--danger" onClick={handleRemove}>
+            Remove from Library
+          </button>
+        </>
+      )}
     </div>
   )
 }

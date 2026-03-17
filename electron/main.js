@@ -143,6 +143,10 @@ ipcMain.on('window-maximise', () => {
 })
 ipcMain.on('window-close', () => mainWindow?.close())
 
+ipcMain.on('show-in-finder', (_, filePath) => {
+  if (filePath) shell.showItemInFolder(filePath)
+})
+
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],

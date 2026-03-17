@@ -423,6 +423,16 @@ def update_album(album_id: int, payload: dict, db: Session = Depends(get_db)):
     return {'success': True}
 
 
+@app.delete('/library/albums/{album_id}')
+def delete_album(album_id: int, db: Session = Depends(get_db)):
+    album = db.query(Album).filter(Album.id == album_id).first()
+    if not album:
+        raise HTTPException(status_code=404, detail='Album not found')
+    db.delete(album)
+    db.commit()
+    return {'success': True}
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 @app.get("/config")
