@@ -96,7 +96,6 @@ export default function App() {
     x: number; y: number; album?: Album; track?: Track; trackAlbum?: Album
   } | null>(null)
   const [isDroppingFile, setIsDroppingFile] = useState(false)
-  const [organiseEnabled, setOrganiseEnabled] = useState(false)
 
   const audioRef    = useRef<HTMLAudioElement | null>(null)
   const dragCounter = useRef(0)
@@ -130,7 +129,6 @@ export default function App() {
         } else {
           setShowOnboarding(true)
         }
-        setOrganiseEnabled(config.library?.organise ?? false)
       } catch {
         setBackendError(true)
       }
@@ -265,23 +263,17 @@ export default function App() {
     const path = (file as any).path
     if (!path) return
 
-    if (organiseEnabled) {
-      // Import mode: scan the dropped folder and add to existing library
-      // (organiser will move files into canonical structure automatically)
-      try {
-        setScanning(true)
-        await fetch('http://localhost:8000/library/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ folder_path: path }),
-        })
-      } catch {
-        setScanning(false)
-        setScanError('Import failed — is the backend running?')
-      }
-    } else {
-      // Classic mode: treat the dropped folder as the new library root
-      handleLibraryChange(path)
+    // Always import into the existing library — library path only changes via Settings
+    try {
+      setScanning(true)
+      await fetch('http://localhost:8000/library/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_path: path }),
+      })
+    } catch {
+      setScanning(false)
+      setScanError('Import failed — is the backend running?')
     }
   }
 
@@ -486,7 +478,7 @@ export default function App() {
         <div className="drop-overlay">
           <div className="drop-overlay-box">
             <div className="drop-overlay-icon">⊕</div>
-            <div className="drop-overlay-label">{organiseEnabled ? 'Drop to import into library' : 'Drop folder to set as library'}</div>
+            <div className="drop-overlay-label">Drop to import into library</div>
           </div>
         </div>
       )}
