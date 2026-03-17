@@ -1767,3 +1767,86 @@
   color: var(--c-accent);
   text-transform: uppercase;
 }
+
+/* ── Singles View ─────────────────────────────────────────────────────────── */
+
+.singles-list-wrap {
+  width: 100%; height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.singles-list-wrap::-webkit-scrollbar { width: 4px; }
+.singles-list-wrap::-webkit-scrollbar-thumb { background: rgba(var(--ink),0.08); border-radius: 2px; }
+
+.singles-list {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.singles-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 1fr 60px 1fr;
+  align-items: center;
+  gap: 0 14px;
+  padding: 0 16px;
+  height: 52px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid rgba(var(--ink),0.04);
+  transition: background 0.12s ease, border-left-color 0.12s ease;
+}
+.singles-row:hover {
+  background: var(--c-hover);
+  border-left-color: var(--c-accent);
+}
+.singles-row--playing {
+  border-left-color: var(--c-accent);
+  background: var(--c-accent-dim);
+}
+
+.singles-art {
+  width: 36px; height: 36px;
+  border-radius: 4px; overflow: hidden; flex-shrink: 0;
+}
+.singles-art img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  border-radius: 4px; filter: brightness(0.85);
+}
+.singles-art .artwork-placeholder { width: 36px; height: 36px; border-radius: 4px; }
+.singles-art .artwork-initials { font-size: 12px; }
+
+.singles-title {
+  font-family: var(--font-display);
+  font-size: 13px; font-weight: 400;
+  color: rgba(var(--ink),0.88);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.singles-row--playing .singles-title {
+  color: rgba(var(--ink),0.95);
+}
+
+.singles-artist {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: rgba(var(--ink),0.55);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.singles-row--playing .singles-artist {
+  color: rgba(var(--ink),0.75);
+}
+
+.singles-year {
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.04em;
+  color: rgba(var(--ink),0.38);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.singles-genre {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: rgba(var(--ink),0.35);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

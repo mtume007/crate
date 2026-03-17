@@ -8,7 +8,7 @@ import type { DiscogsCandidate } from './components/AlbumMatcher'
 import { useTheme } from './context/ThemeContext'
 import './styles/app.css'
 
-type View = 'library'
+type View = 'library' | 'singles'
 
 interface Album {
   id: number
@@ -310,20 +310,24 @@ export default function App() {
 
   const q = searchQuery.trim().toLowerCase()
 
-  const albumMatches = q ? albums.filter(album =>
+  // Split into full albums (2+ tracks) and singles (1 track)
+  const fullAlbums    = albums.filter(a => a.track_count >= 2)
+  const singlesAlbums = albums.filter(a => a.track_count < 2)
+  const sourceAlbums  = activeView === 'singles' ? singlesAlbums : fullAlbums
+
+  const albumMatches = q ? sourceAlbums.filter(album =>
     album.artist?.toLowerCase().includes(q) ||
     album.title?.toLowerCase().includes(q) ||
     album.label?.toLowerCase().includes(q) ||
     album.catalog_num?.toLowerCase().includes(q) ||
     album.genre?.toLowerCase().includes(q)
-  ) : albums
+  ) : sourceAlbums
 
   // Phase 2: if no album matches, search track titles and return their parent albums
   const trackMatchFallback = albumMatches.length === 0 && q.length > 0
   let filtered = albumMatches
   if (trackMatchFallback) {
-    // Build folder→album map for O(1) lookups
-    const folderMap = new Map(albums.map(a => [a.folder_path, a]))
+    const folderMap = new Map(sourceAlbums.map(a => [a.folder_path, a]))
     const parentFolders = new Set(
       trackResults
         .filter(t => t.title?.toLowerCase().includes(q))
@@ -357,6 +361,7 @@ export default function App() {
         onMouseLeave={() => setSidebarExpanded(false)}>
         <nav className="nav-items">
           <NavItem id="library" label="Library" active={activeView} icon={<IconGrid />}   onClick={() => setActiveView('library')} />
+          <NavItem id="singles" label="Singles" active={activeView} icon={<IconSingles />} onClick={() => setActiveView('singles')} />
           <NavItem id="library" label="Review"  active={activeView} icon={<IconTagger />} onClick={() => setShowReview(true)} />
         </nav>
         <div className="nav-divider" />
@@ -370,11 +375,13 @@ export default function App() {
 
       <header className="titlebar">
         <span className="titlebar-context">
-          {q
-            ? `${filtered.length} album${filtered.length !== 1 ? 's' : ''}`
-            : stats.albums > 0 ? `${stats.albums} albums` : 'Crate'}
+          {activeView === 'singles'
+            ? (q ? `${filtered.length} single${filtered.length !== 1 ? 's' : ''}` : `${singlesAlbums.length} single${singlesAlbums.length !== 1 ? 's' : ''}`)
+            : (q
+                ? `${filtered.length} album${filtered.length !== 1 ? 's' : ''}`
+                : stats.albums > 0 ? `${fullAlbums.length} album${fullAlbums.length !== 1 ? 's' : ''}` : 'Crate')}
         </span>
-        {!q && stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
+        {!q && activeView === 'library' && stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
         {trackMatchFallback && filtered.length > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">track match</span></>}
       </header>
 
@@ -424,6 +431,14 @@ export default function App() {
             currentAlbum={currentAlbum}
             onAlbumContextMenu={(album, e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, album }) }}
             onTrackContextMenu={(track, trackAlbum, e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, track, trackAlbum }) }}
+          />
+        )}
+        {activeView === 'singles' && (
+          <SinglesView
+            albums={sorted}
+            loaded={loaded}
+            onPlayTrack={playTrack}
+            currentAlbum={currentAlbum}
           />
         )}
       </main>
@@ -1100,6 +1115,70 @@ function ContextMenu({ x, y, album, track, trackAlbum: _trackAlbum, onClose, onS
   )
 }
 
+// ── Singles View ────────────────────────────────────────────────────────────
+
+function SinglesView({ albums, loaded, onPlayTrack, currentAlbum }: {
+  albums: Album[]
+  loaded: boolean
+  onPlayTrack: (track: Track, list: Track[], album: Album) => void
+  currentAlbum: Album | null
+}) {
+  const [loading, setLoading] = useState<number | null>(null)
+
+  const handlePlay = async (album: Album) => {
+    if (loading === album.id) return
+    setLoading(album.id)
+    try {
+      const data = await fetchTracks(album.folder_path)
+      const tracks: Track[] = data.tracks
+      if (tracks.length > 0) {
+        onPlayTrack(tracks[0], tracks, album)
+      }
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
+  if (albums.length === 0) return (
+    <div className="placeholder-view">
+      <div className="import-prompt">
+        <div className="import-title">No singles</div>
+        <div className="import-sub">Single tracks will appear here</div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="singles-list-wrap">
+      <div className="singles-list">
+        {albums.map(album => {
+          const isPlaying = currentAlbum?.id === album.id
+          const url = artworkUrl(album.artwork_url)
+          return (
+            <div
+              key={album.id}
+              className={`singles-row${isPlaying ? ' singles-row--playing' : ''}`}
+              onClick={() => handlePlay(album)}
+              title={loading === album.id ? 'Loading…' : `Play ${album.title}`}
+            >
+              <div className="singles-art">
+                {url
+                  ? <img src={url} alt={album.title} />
+                  : <ArtworkPlaceholder title={album.title} />}
+              </div>
+              <div className="singles-title">{album.title || 'Unknown'}</div>
+              <div className="singles-artist">{album.artist || '—'}</div>
+              <div className="singles-year">{album.year || '—'}</div>
+              <div className="singles-genre">{album.genre || '—'}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function IconGrid({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="1" y="1" width="6" height="6" /><rect x="9" y="1" width="6" height="6" /><rect x="1" y="9" width="6" height="6" /><rect x="9" y="9" width="6" height="6" /></svg>
 }
@@ -1117,6 +1196,9 @@ function IconList({ size = 16 }: { size?: number }) {
 }
 function IconSearch({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="6.5" cy="6.5" r="4.5" /><path d="M10.5 10.5l3.5 3.5" /></svg>
+}
+function IconSingles({ size = 16 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="9" r="2.5" /><path d="M10.5 9V3.5l3 1" /></svg>
 }
 
 // ── Album Detail Panel ─────────────────────────────────────────────────────
