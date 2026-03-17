@@ -1436,6 +1436,7 @@
 }
 .coverflow-card--active {
   filter: drop-shadow(0 24px 56px rgba(0,0,0,0.85));
+  outline: 1.5px solid var(--c-accent-border);
   cursor: default;
 }
 .cf-art {
@@ -1508,9 +1509,9 @@
 .cf-chip {
   font-family: var(--font-mono);
   font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: rgba(var(--ink),0.38);
-  background: rgba(var(--ink),0.04);
-  border: 1px solid rgba(var(--ink),0.07);
+  color: rgba(var(--ink),0.55);
+  background: rgba(var(--c-accent), 0.06);
+  border: 1px solid rgba(var(--c-accent), 0.2);
   border-radius: 3px; padding: 2px 7px;
 }
 
