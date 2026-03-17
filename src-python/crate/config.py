@@ -20,7 +20,8 @@ DEFAULTS = {
         "font": "Outfit"
     },
     "library": {
-        "path": "/Users/pedersimonsen/Music/Music/Media.localized/Music"
+        "path": "/Users/pedersimonsen/Music/Music/Media.localized/Music",
+        "organise": False
     },
     "enrichment": {
         "discogs_token": "",

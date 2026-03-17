@@ -16,6 +16,7 @@ from .scanner import scan_library
 from .deduplicator import deduplicate_library
 from .config import load_config, save_config
 from .enricher import enrich_library, enrich_album, get_release_detail, normalise_query, discogs_search
+from .organiser import organise_library
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -111,6 +112,106 @@ async def run_dedup(background_tasks: BackgroundTasks):
             db.close()
     background_tasks.add_task(run)
     return {"status": "started"}
+
+# ── Organise ──────────────────────────────────────────────────────────────────
+
+organise_status = {
+    "running": False, "current": 0, "total": 0,
+    "current_album": "", "last_result": None,
+}
+
+@app.post("/library/organise")
+async def start_organise(background_tasks: BackgroundTasks):
+    """Move all tracked files into the canonical folder structure."""
+    if organise_status["running"]:
+        return {"status": "already_running"}
+
+    cfg = load_config()
+    library_path = cfg.get("library", {}).get("path", "")
+    if not library_path:
+        raise HTTPException(status_code=400, detail="No library path configured")
+
+    organise_status["running"] = True
+    organise_status["current"] = 0
+    organise_status["total"] = 0
+    organise_status["current_album"] = ""
+
+    def run():
+        db = SessionLocal()
+        try:
+            def progress(current, total, album):
+                organise_status["current"] = current
+                organise_status["total"] = total
+                organise_status["current_album"] = album or ""
+
+            result = organise_library(library_path, db, progress_callback=progress)
+            organise_status["last_result"] = result
+        except Exception as e:
+            logger.error(f"Organise error: {e}")
+        finally:
+            organise_status["running"] = False
+            db.close()
+
+    background_tasks.add_task(run)
+    return {"status": "started"}
+
+
+@app.get("/library/organise/status")
+def get_organise_status():
+    return organise_status
+
+
+class ImportRequest(BaseModel):
+    folder_path: str
+
+@app.post("/library/import")
+async def import_folder(req: ImportRequest, background_tasks: BackgroundTasks):
+    """
+    Scan a new folder and add its tracks to the existing library.
+    If config.library.organise is True, also runs the organiser afterwards
+    so the imported files are moved into the canonical structure.
+    """
+    if scan_status["running"]:
+        return {"status": "already_running"}
+
+    cfg = load_config()
+    library_path = cfg.get("library", {}).get("path", "")
+    should_organise = cfg.get("library", {}).get("organise", False)
+
+    scan_status["running"] = True
+    scan_status["stage"] = "scanning"
+    scan_status["current"] = 0
+    scan_status["total"] = 0
+    scan_status["current_file"] = ""
+
+    def run():
+        db = SessionLocal()
+        try:
+            def progress(current, total, filepath, action):
+                scan_status["current"] = current
+                scan_status["total"] = total
+                scan_status["current_file"] = os.path.basename(filepath)
+
+            result = scan_library(req.folder_path, db, progress_callback=progress)
+            scan_status["last_result"] = result
+
+            if should_organise and library_path:
+                scan_status["stage"] = "organising"
+                scan_status["current_file"] = "Organising files…"
+                org_result = organise_library(library_path, db)
+                result["organise"] = org_result
+
+            scan_status["stage"] = "done"
+        except Exception as e:
+            logger.error(f"Import error: {e}")
+            scan_status["stage"] = "error"
+        finally:
+            scan_status["running"] = False
+            db.close()
+
+    background_tasks.add_task(run)
+    return {"status": "started", "folder": req.folder_path}
+
 
 # ── Albums ────────────────────────────────────────────────────────────────────
 

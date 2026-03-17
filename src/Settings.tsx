@@ -3,7 +3,7 @@ import { fetchConfig, updateConfig } from './api'
 
 interface Config {
   ai: { provider: string; model: string; api_key: string }
-  library: { path: string }
+  library: { path: string; organise: boolean }
   enrichment: { discogs_token: string; auto_enrich: boolean; source: string }
 }
 
@@ -11,6 +11,8 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
   const [config, setConfig] = useState<Config | null>(null)
   const [tab, setTab] = useState<'ai' | 'library' | 'enrichment'>('ai')
   const [pickingFolder, setPickingFolder] = useState(false)
+  const [organising, setOrganising] = useState(false)
+  const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number } | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -107,6 +109,62 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
                 Changing the folder will clear your current library and rescan automatically.
               </div>
             </div>
+
+            <div className="settings-row settings-row--organise">
+              <div className="settings-row-label">Organise Files</div>
+              <div className="settings-organise-wrap">
+                <label className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={config.library.organise ?? false}
+                    onChange={e => {
+                      set('library', 'organise', e.target.checked)
+                      updateConfig({ library: { organise: e.target.checked } })
+                    }}
+                  />
+                  <span className="settings-toggle-track" />
+                </label>
+                <span className="settings-organise-label">
+                  {config.library.organise ? 'On — files are sorted on disk' : 'Off — files stay where they are'}
+                </span>
+              </div>
+              <div className="settings-folder-hint">
+                When on, Crate moves your music into Complete Albums/ and Singles &amp; Loose/ inside your library folder. Drag-and-drop imports are organised automatically.
+              </div>
+            </div>
+
+            {config.library.organise && (
+              <div className="settings-row">
+                <div className="settings-row-label">Organise Now</div>
+                <div className="enrich-row">
+                  <button
+                    className={`enrich-btn ${organising ? 'running' : ''}`}
+                    disabled={organising}
+                    onClick={async () => {
+                      setOrganising(true)
+                      setOrganiseResult(null)
+                      await fetch('http://localhost:8000/library/organise', { method: 'POST' })
+                      const poll = setInterval(async () => {
+                        const r = await fetch('http://localhost:8000/library/organise/status')
+                        const s = await r.json()
+                        if (!s.running) {
+                          clearInterval(poll)
+                          setOrganising(false)
+                          if (s.last_result) setOrganiseResult(s.last_result)
+                        }
+                      }, 800)
+                    }}
+                  >
+                    {organising ? 'Organising…' : 'Organise library'}
+                  </button>
+                  {organiseResult && !organising && (
+                    <span className="enrich-result">
+                      {organiseResult.moved} moved · {organiseResult.skipped} already sorted · {organiseResult.errors} errors
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </>}
 
           {tab === 'enrichment' && <>
