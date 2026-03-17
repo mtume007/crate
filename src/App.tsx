@@ -328,6 +328,7 @@ export default function App() {
             onScan={() => handleScan()} onAlbumClick={setSelectedAlbum}
             onPlayTrack={playTrack} hasLibrary={albums.length > 0}
             searchQuery={q} viewMode={viewMode} onAlbumUpdate={loadLibrary}
+            currentAlbum={currentAlbum}
           />
         )}
       </main>
@@ -419,11 +420,11 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
   )
 }
 
-function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate }: {
+function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate, currentAlbum }: {
   albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
   hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow'
-  onAlbumUpdate: () => void
+  onAlbumUpdate: () => void; currentAlbum: Album | null
 }) {
   if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
   if (albums.length === 0 && !scanning) {
@@ -446,24 +447,24 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
       </div>
     )
   }
-  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} />
-  if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} />
+  if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} currentAlbumId={currentAlbum?.id ?? null} />
+  if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} currentAlbumId={currentAlbum?.id ?? null} />
   return (
     <div className="library-grid-wrap">
       <div className="library-grid">
-        {albums.map(album => <AlbumCard key={album.id} album={album} onClick={onAlbumClick} />)}
+        {albums.map(album => <AlbumCard key={album.id} album={album} onClick={onAlbumClick} isPlaying={album.id === currentAlbum?.id} />)}
       </div>
     </div>
   )
 }
 
-function AlbumCard({ album, onClick }: { album: Album; onClick: (a: Album) => void }) {
+function AlbumCard({ album, onClick, isPlaying }: { album: Album; onClick: (a: Album) => void; isPlaying?: boolean }) {
   const [imgError, setImgError] = useState(false)
   const url = artworkUrl(album.artwork_url)
   const meta = [album.artist, album.label, album.year].filter(Boolean).join(' · ')
 
   return (
-    <div className="album-card" onClick={() => onClick(album)}>
+    <div className={`album-card${isPlaying ? ' album-card--playing' : ''}`} onClick={() => onClick(album)}>
       <div className="album-art">
         {url && !imgError
           ? <img src={url} alt={album.title} onError={() => setImgError(true)} />
@@ -479,8 +480,8 @@ function AlbumCard({ album, onClick }: { album: Album; onClick: (a: Album) => vo
 
 // ── List View ───────────────────────────────────────────────────────────────
 
-function ListView({ albums, onAlbumClick, onAlbumUpdate }: {
-  albums: Album[]; onAlbumClick: (a: Album) => void; onAlbumUpdate: () => void
+function ListView({ albums, onAlbumClick, onAlbumUpdate, currentAlbumId }: {
+  albums: Album[]; onAlbumClick: (a: Album) => void; onAlbumUpdate: () => void; currentAlbumId: number | null
 }) {
   return (
     <div className="list-view-wrap">
@@ -495,7 +496,7 @@ function ListView({ albums, onAlbumClick, onAlbumUpdate }: {
         <span />
       </div>
       {albums.map(album => (
-        <ListRow key={album.id} album={album} onClick={onAlbumClick} onUpdate={onAlbumUpdate} />
+        <ListRow key={album.id} album={album} onClick={onAlbumClick} onUpdate={onAlbumUpdate} isPlaying={album.id === currentAlbumId} />
       ))}
     </div>
   )
@@ -544,8 +545,8 @@ function ChipInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-function ListRow({ album, onClick, onUpdate }: {
-  album: Album; onClick: (a: Album) => void; onUpdate: () => void
+function ListRow({ album, onClick, onUpdate, isPlaying }: {
+  album: Album; onClick: (a: Album) => void; onUpdate: () => void; isPlaying?: boolean
 }) {
   const [imgError, setImgError] = useState(false)
   const [editing, setEditing]   = useState(false)
@@ -596,7 +597,7 @@ function ListRow({ album, onClick, onUpdate }: {
 
   return (
     <div
-      className={`list-row${editing ? ' list-row--editing' : ''}`}
+      className={`list-row${editing ? ' list-row--editing' : ''}${isPlaying && !editing ? ' list-row--playing' : ''}`}
       onClick={() => { if (!editing) onClick(album) }}
     >
       <div className="lr-thumb">
@@ -673,9 +674,10 @@ function interpAt(vals: readonly number[], t: number): number {
   return vals[lo] + (vals[lo + 1] - vals[lo]) * (t - lo)
 }
 
-function CoverflowView({ albums, onPlayTrack }: {
+function CoverflowView({ albums, onPlayTrack, currentAlbumId }: {
   albums: Album[]
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
+  currentAlbumId: number | null
 }) {
   const [activeIdx, setActiveIdx]   = useState(0)
   const [trackIdx,  setTrackIdx]    = useState(-1)   // -1 = no track focused
@@ -692,6 +694,13 @@ function CoverflowView({ albums, onPlayTrack }: {
   const safeIdx     = albums.length > 0 ? Math.min(Math.max(activeIdx, 0), albums.length - 1) : 0
   const activeAlbum = albums[safeIdx]
   const activeId    = activeAlbum?.id ?? -1
+
+  // Auto-centre on the currently playing album when it changes or when view mounts
+  useEffect(() => {
+    if (currentAlbumId == null) return
+    const idx = albums.findIndex(a => a.id === currentAlbumId)
+    if (idx !== -1) setActiveIdx(idx)
+  }, [currentAlbumId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset track focus when album changes
   useEffect(() => { setTrackIdx(-1) }, [activeId])
