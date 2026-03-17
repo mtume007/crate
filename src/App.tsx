@@ -589,10 +589,10 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
                       setUrlLoading(true)
                       setUrlError(null)
                       try {
-                        const res = await fetch('http://localhost:8000/library/enrich/url', {
+                        const res = await fetch(`http://localhost:8000/library/enrich/url/${album.id}`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ album_id: album.id, discogs_url: val })
+                          body: JSON.stringify({ url: val })
                         })
                         const data = await res.json()
                         if (data.success) {

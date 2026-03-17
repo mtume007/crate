@@ -311,11 +311,10 @@ def enrich_search(body: dict):
     return {'candidates': results[:5]}
 
 
-@app.post('/library/enrich/url')
-def enrich_by_url(payload: dict, db: Session = Depends(get_db)):
+@app.post('/library/enrich/url/{album_id}')
+def enrich_by_url(album_id: int, payload: dict, db: Session = Depends(get_db)):
     """Enrich an album directly from a Discogs URL (release or master)."""
-    album_id = payload.get('album_id')
-    discogs_url = payload.get('discogs_url', '')
+    discogs_url = payload.get('url') or payload.get('discogs_url', '')
 
     release_match = re.search(r'/release/(\d+)', discogs_url)
     master_match  = re.search(r'/master/(\d+)', discogs_url)
