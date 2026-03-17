@@ -66,6 +66,7 @@ export default function App() {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null)
   const [libraryPath, setLibraryPath] = useState('')
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null)
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -213,6 +214,18 @@ export default function App() {
 
   const pct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0
 
+  const filtered = albums.filter(album => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      album.artist?.toLowerCase().includes(q) ||
+      album.title?.toLowerCase().includes(q) ||
+      album.label?.toLowerCase().includes(q) ||
+      album.catalog_num?.toLowerCase().includes(q) ||
+      album.genre?.toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarExpanded ? 'expanded' : ''}`}
@@ -232,8 +245,12 @@ export default function App() {
       </aside>
 
       <header className="titlebar">
-        <span className="titlebar-context">{stats.albums > 0 ? `${stats.albums} albums` : 'Crate'}</span>
-        {stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
+        <span className="titlebar-context">
+          {searchQuery.trim()
+            ? `${filtered.length} album${filtered.length !== 1 ? 's' : ''}`
+            : stats.albums > 0 ? `${stats.albums} albums` : 'Crate'}
+        </span>
+        {!searchQuery.trim() && stats.tracks > 0 && <><span className="titlebar-sep">·</span><span className="titlebar-count">{stats.tracks.toLocaleString()} tracks</span></>}
       </header>
 
       <div className="toolbar">
@@ -245,7 +262,15 @@ export default function App() {
         <div className="toolbar-sep" />
         <div className="search-bar">
           <IconSearch size={11} />
-          <input className="search-input" placeholder="artist, label, cat#..." />
+          <input
+            className="search-input"
+            placeholder="artist, label, cat#..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button className="search-clear" onClick={() => setSearchQuery('')} title="Clear">✕</button>
+          )}
         </div>
         <div className="toolbar-right">
           <button className={`scan-btn ${scanning ? 'scanning' : ''}`} onClick={() => handleScan()} disabled={scanning}>
@@ -255,7 +280,7 @@ export default function App() {
       </div>
 
       <main className="main-content">
-        {activeView === 'library' && <LibraryView albums={albums} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} />}
+        {activeView === 'library' && <LibraryView albums={filtered} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} />}
       </main>
 
       <Playbar

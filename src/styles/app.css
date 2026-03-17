@@ -213,6 +213,19 @@
 }
 .search-input::placeholder { color: rgba(var(--ink),0.2); }
 
+.search-clear {
+  background: none;
+  border: none;
+  color: rgba(var(--ink),0.22);
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+.search-clear:hover { color: rgba(var(--ink),0.6); }
+
 .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 .tag-filter {
