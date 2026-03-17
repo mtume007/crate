@@ -662,8 +662,16 @@ function ListRow({ album, onClick, onUpdate }: {
 
 const CF_CARD  = 280  // base card size (px)
 const CF_STEP  = 200  // horizontal distance between card centres (px)
-const CF_SCALE = [1, 0.714, 0.5, 0.357] as const
-const CF_OPAC  = [1, 0.60, 0.35, 0.18]  as const
+const CF_SCALE = [1, 0.714, 0.5, 0.357, 0.25] as const
+const CF_OPAC  = [1, 0.60,  0.35, 0.18, 0.08] as const
+
+// Linearly interpolate between lookup-table values at a fractional distance
+function interpAt(vals: readonly number[], t: number): number {
+  if (t <= 0) return vals[0]
+  if (t >= vals.length - 1) return vals[vals.length - 1]
+  const lo = Math.floor(t)
+  return vals[lo] + (vals[lo + 1] - vals[lo]) * (t - lo)
+}
 
 function CoverflowView({ albums, onPlayTrack }: {
   albums: Album[]
@@ -785,26 +793,30 @@ function CoverflowView({ albums, onPlayTrack }: {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {albums.map((album, idx) => {
-          const dist  = idx - safeIdx
-          const abs   = Math.abs(dist)
-          if (abs > 3) return null
-          const scale   = CF_SCALE[abs]
-          const opacity = CF_OPAC[abs]
-          const offsetX = dist * CF_STEP + (isDragging ? dragOffsetPx : 0)
+        {(() => {
+          // Fractional visual centre — cards scale/fade continuously during drag
+          const floatIdx = isDragging ? safeIdx - dragOffsetPx / CF_STEP : safeIdx
+          return albums.map((album, idx) => {
+          const floatDist = idx - floatIdx
+          const absFrac   = Math.abs(floatDist)
+          if (absFrac > 4) return null
+          const scale   = interpAt(CF_SCALE, absFrac)
+          const opacity = interpAt(CF_OPAC,  absFrac)
+          const offsetX = floatDist * CF_STEP
+          const isActive = idx === safeIdx
           const url = artworkUrl(album.artwork_url)
           return (
             <div
               key={album.id}
-              className={`coverflow-card${dist === 0 ? ' coverflow-card--active' : ''}`}
+              className={`coverflow-card${isActive ? ' coverflow-card--active' : ''}`}
               style={{
                 width: `${CF_CARD}px`, height: `${CF_CARD}px`,
                 transform: `translateX(calc(-50% + ${offsetX}px)) translateY(-50%) scale(${scale})`,
                 opacity,
-                zIndex: 10 - abs,
+                zIndex: Math.round(10 - absFrac),
                 transition: isDragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease',
               }}
-              onClick={() => { if (!didDragRef.current && dist !== 0) setActiveIdx(idx) }}
+              onClick={() => { if (!didDragRef.current && !isActive) setActiveIdx(idx) }}
             >
               {url
                 ? <img src={url} alt={album.title} className="cf-art" draggable={false} />
@@ -817,7 +829,8 @@ function CoverflowView({ albums, onPlayTrack }: {
               </div>
             </div>
           )
-        })}
+        })
+        })()}
         {/* Edge vignettes */}
         <div className="cf-vignette cf-vignette--left"  aria-hidden />
         <div className="cf-vignette cf-vignette--right" aria-hidden />
