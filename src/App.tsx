@@ -100,9 +100,11 @@ export default function App() {
       setLoaded(true)
       // Load all tracks once for search — fire and forget, non-blocking
       fetchAllTracks().then(data => setTrackResults(data.tracks)).catch(() => {})
+      return albumData.albums as Album[]
     } catch {
       setBackendError(true)
       setLoaded(true)
+      return [] as Album[]
     }
   }, [])
 
@@ -345,7 +347,11 @@ export default function App() {
           album={selectedAlbum}
           onClose={() => setSelectedAlbum(null)}
           onPlayTrack={playTrack}
-          onRefresh={loadLibrary}
+          onRefresh={async () => {
+            const fresh = await loadLibrary()
+            const updated = fresh.find(a => a.id === selectedAlbum?.id)
+            if (updated) setSelectedAlbum(updated)
+          }}
           onOpenMatcher={(a) => {
             setSelectedAlbum(null)
             setPendingAlbum(a)
