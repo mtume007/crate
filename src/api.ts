@@ -1,6 +1,6 @@
 const BASE = "http://localhost:8000"
 
-export async function fetchAlbums(skip = 0, limit = 200) {
+export async function fetchAlbums(skip = 0, limit = 2000) {
   const res = await fetch(`${BASE}/library/albums?skip=${skip}&limit=${limit}`)
   if (!res.ok) throw new Error("Failed to fetch albums")
   return res.json()

@@ -53,7 +53,7 @@ export default function AlbumMatcher({
         setSearching(false)
       })
       .catch(() => {
-        setError('Search failed')
+        setError('Discogs search failed — check your token in Settings')
         setSearching(false)
       })
   }, [artist, title])

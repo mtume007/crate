@@ -227,6 +227,13 @@
 .search-clear:hover { color: rgba(var(--ink),0.6); }
 
 .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.scan-error {
+  font-size: 10px;
+  color: rgba(220, 80, 80, 0.85);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
 
 .tag-filter {
   height: 26px; padding: 0 10px;

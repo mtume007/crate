@@ -24,7 +24,9 @@ interface DiscogsCandidate {
 export default function ReviewPanel({ onClose }: { onClose: () => void }) {
   const [albums, setAlbums] = useState<ReviewAlbum[]>([])
   const [candidates, setCandidates] = useState<Record<number, DiscogsCandidate[]>>({})
+  const [candidateErrors, setCandidateErrors] = useState<Record<number, boolean>>({})
   const [loading, setLoading] = useState<Record<number, boolean>>({})
+  const [fetchError, setFetchError] = useState(false)
 
   useEffect(() => {
     fetch('http://localhost:8000/library/albums?limit=500')
@@ -38,7 +40,7 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
         )
         setAlbums(unmatched)
       })
-      .catch(e => console.error('ReviewPanel fetch failed:', e))
+      .catch(() => setFetchError(true))
   }, [])
 
   const searchCandidates = async (album: ReviewAlbum) => {
@@ -50,8 +52,8 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
       )
       const data = await res.json()
       setCandidates(c => ({ ...c, [album.id]: data.results || [] }))
-    } catch (e) {
-      console.error('Candidates fetch failed:', e)
+    } catch {
+      setCandidateErrors(e => ({ ...e, [album.id]: true }))
       setCandidates(c => ({ ...c, [album.id]: [] }))
     } finally {
       setLoading(l => ({ ...l, [album.id]: false }))
@@ -88,7 +90,12 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="review-body">
-          {albums.length === 0 && (
+          {fetchError && (
+            <div className="review-empty" style={{ color: 'rgba(var(--ink),0.5)' }}>
+              Failed to load albums — check the backend is running
+            </div>
+          )}
+          {!fetchError && albums.length === 0 && (
             <div className="review-empty">All albums matched ✓</div>
           )}
 
@@ -114,7 +121,11 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
                 {candidates[album.id] !== undefined && (
                   <div className="review-candidates">
                     {candidates[album.id].length === 0 && (
-                      <span className="review-no-results">No results found</span>
+                      <span className="review-no-results">
+                        {candidateErrors[album.id]
+                          ? 'Search failed — check your Discogs token in Settings'
+                          : 'No results found'}
+                      </span>
                     )}
                     {candidates[album.id].map(c => (
                       <div key={c.id} className="review-candidate" onClick={() => linkCandidate(album, c)}>

@@ -86,6 +86,8 @@ export default function App() {
     albumId: number; artist: string; title: string
     year?: string; format?: string; trackCount?: number
   } | null>(null)
+  const [backendError, setBackendError] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -97,8 +99,8 @@ export default function App() {
       setLoaded(true)
       // Load all tracks once for search — fire and forget, non-blocking
       fetchAllTracks().then(data => setTrackResults(data.tracks)).catch(() => {})
-    } catch (e) {
-      console.error('Failed to load library:', e)
+    } catch {
+      setBackendError(true)
       setLoaded(true)
     }
   }, [])
@@ -117,7 +119,7 @@ export default function App() {
           setShowOnboarding(true)
         }
       } catch {
-        setShowOnboarding(true)
+        setBackendError(true)
       }
     }
     checkConfig()
@@ -211,8 +213,9 @@ export default function App() {
   const handleScan = async (path?: string) => {
     const scanPath = path || libraryPath
     if (!scanPath) return
+    setScanError(null)
     try { setScanning(true); await startScan(scanPath) }
-    catch (e) { console.error('Scan failed:', e); setScanning(false) }
+    catch { setScanning(false); setScanError('Scan failed — is the backend running?') }
   }
 
   const handleOnboardingComplete = (path: string) => {
@@ -300,11 +303,12 @@ export default function App() {
           <button className={`scan-btn ${scanning ? 'scanning' : ''}`} onClick={() => handleScan()} disabled={scanning}>
             {scanning ? `${pct}%${scanProgress.file ? ` — ${scanProgress.file}` : ''}` : albums.length === 0 ? 'Import Library' : 'Rescan'}
           </button>
+          {scanError && <span className="scan-error">{scanError}</span>}
         </div>
       </div>
 
       <main className="main-content">
-        {activeView === 'library' && <LibraryView albums={filtered} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} />}
+        {activeView === 'library' && <LibraryView albums={filtered} loaded={loaded} scanning={scanning} onScan={() => handleScan()} onAlbumClick={setSelectedAlbum} hasLibrary={albums.length > 0} searchQuery={q} />}
       </main>
 
       <Playbar
@@ -321,6 +325,8 @@ export default function App() {
         stats={stats}
         scanning={scanning}
         scanPct={pct}
+        filteredCount={q ? filtered.length : undefined}
+        isTrackMatch={trackMatchFallback}
       />
 
       {selectedAlbum && (
@@ -345,6 +351,35 @@ export default function App() {
         onClose={() => setPendingAlbum(null)}
       />
       {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+
+      {backendError && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 400,
+          background: 'rgba(8,8,8,0.97)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: '10px', fontFamily: 'var(--font-mono)',
+        }}>
+          <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.01em' }}>
+            Can't connect to backend
+          </div>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+            Make sure the Crate server is running on localhost:8000
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '10px', padding: '6px 18px',
+              background: 'none', border: '1px solid rgba(255,255,255,0.18)',
+              color: 'rgba(255,255,255,0.6)', fontFamily: 'var(--font-mono)',
+              fontSize: '11px', cursor: 'pointer', borderRadius: '2px',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -358,9 +393,21 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
   )
 }
 
-function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick }: { albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void }) {
+function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, hasLibrary, searchQuery }: {
+  albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
+  hasLibrary: boolean; searchQuery: string
+}) {
   if (!loaded) return <div className="placeholder-view"><span className="placeholder-label">Loading...</span></div>
   if (albums.length === 0 && !scanning) {
+    if (hasLibrary && searchQuery) {
+      return (
+        <div className="placeholder-view">
+          <div className="import-prompt">
+            <div className="import-title">No results for "{searchQuery}"</div>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="placeholder-view">
         <div className="import-prompt">
@@ -603,20 +650,26 @@ function formatDuration(seconds: number): string {
 
 // ── Playbar ────────────────────────────────────────────────────────────────
 
-function Playbar({ track, album, isPlaying, progress, volume, onToggle, onPrev, onNext, onSeek, onVolume, stats, scanning, scanPct }: {
+function Playbar({ track, album, isPlaying, progress, volume, onToggle, onPrev, onNext, onSeek, onVolume, stats, scanning, scanPct, filteredCount, isTrackMatch }: {
   track: Track | null; album: Album | null
   isPlaying: boolean; progress: number; volume: number
   onToggle: () => void; onPrev: () => void; onNext: () => void
   onSeek: (p: number) => void; onVolume: (v: number) => void
   stats: { tracks: number; albums: number; untagged: number }
   scanning: boolean; scanPct: number
+  filteredCount?: number; isTrackMatch?: boolean
 }) {
   const artUrl = album ? artworkUrl(album.artwork_url) : null
 
   if (!track) {
+    const statsLabel = filteredCount !== undefined
+      ? `${filteredCount} album${filteredCount !== 1 ? 's' : ''}${isTrackMatch ? ' · track match' : ''}`
+      : stats.tracks > 0
+        ? `${stats.tracks.toLocaleString()} tracks · ${stats.albums} albums`
+        : null
     return (
       <footer className="playbar playbar-empty">
-        <span className="playbar-stats">{stats.tracks.toLocaleString()} tracks · {stats.albums} albums</span>
+        {statsLabel && <span className="playbar-stats">{statsLabel}</span>}
         {scanning && <span className="playbar-scanning">Scanning {scanPct}%</span>}
       </footer>
     )
