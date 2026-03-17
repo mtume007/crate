@@ -14,7 +14,7 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
   const [organising, setOrganising] = useState(false)
   const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number; not_found?: number } | null>(null)
   const [purging, setPurging] = useState(false)
-  const [purgeResult, setPurgeResult] = useState<{ removed?: number; checked?: number } | null>(null)
+  const [purgeResult, setPurgeResult] = useState<{ success?: boolean; removed?: number; checked?: number; error?: string } | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -191,10 +191,12 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
                   {purging ? 'Fixing…' : 'Remove stale entries'}
                 </button>
                 {purgeResult && !purging && (
-                  <span className="enrich-result">
-                    {purgeResult.removed === 0
-                      ? `All good — ${purgeResult.checked} tracks checked`
-                      : `Removed ${purgeResult.removed} ghost entries from ${purgeResult.checked} checked`}
+                  <span className="enrich-result" style={purgeResult.error ? { color: 'var(--c-error, #e05)' } : undefined}>
+                    {purgeResult.error
+                      ? `Error: ${purgeResult.error}`
+                      : purgeResult.removed === 0
+                        ? `All good — ${purgeResult.checked ?? 0} tracks checked`
+                        : `Removed ${purgeResult.removed} ghost entries · ${purgeResult.checked ?? 0} checked`}
                   </span>
                 )}
               </div>

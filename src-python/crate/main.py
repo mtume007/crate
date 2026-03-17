@@ -533,12 +533,17 @@ def update_album(album_id: int, payload: dict, db: Session = Depends(get_db)):
 @app.post('/library/purge-stale')
 def purge_stale(db: Session = Depends(get_db)):
     """Remove tracks whose files no longer exist on disk, then rebuild albums."""
-    config = load_config()
-    library_path = config.get("library", {}).get("path", "")
-    if not library_path:
-        raise HTTPException(status_code=400, detail="Library path not configured")
-    result = purge_stale_tracks(library_path, db)
-    return {"success": True, "removed": result["removed"], "checked": result["checked"]}
+    try:
+        config = load_config()
+        library_path = config.get("library", {}).get("path", "")
+        if not library_path:
+            return {"success": False, "error": "Library path not configured", "removed": 0, "checked": 0}
+        library_path = os.path.normpath(os.path.expanduser(library_path))
+        result = purge_stale_tracks(library_path, db)
+        return {"success": True, "removed": result["removed"], "checked": result["checked"]}
+    except Exception as e:
+        logger.error(f"purge_stale error: {e}", exc_info=True)
+        return {"success": False, "error": str(e), "removed": 0, "checked": 0}
 
 
 @app.delete('/library/clear')

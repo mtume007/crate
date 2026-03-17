@@ -134,7 +134,10 @@ def purge_stale_tracks(library_path: str, db) -> dict:
 
     if removed:
         db.commit()
-        rebuild_albums(library_path, db)
+        try:
+            rebuild_albums(library_path, db)
+        except Exception as e:
+            logger.error(f"purge_stale_tracks: rebuild_albums failed: {e}", exc_info=True)
         logger.info(f"Purged {removed} stale track(s) from DB")
 
     return {"checked": len(tracks), "removed": removed}
