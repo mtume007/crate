@@ -5,6 +5,7 @@ import ReviewPanel from './ReviewPanel'
 import AddModal from './components/AddModal'
 import Onboarding from './components/Onboarding'
 import type { DiscogsCandidate } from './components/AlbumMatcher'
+import { useTheme } from './context/ThemeContext'
 import './styles/app.css'
 
 type View = 'library'
@@ -62,6 +63,7 @@ interface Stats {
 }
 
 export default function App() {
+  const { theme, toggle: toggleTheme } = useTheme()
   const [activeView, setActiveView] = useState<View>('library')
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [albums, setAlbums] = useState<Album[]>([])
@@ -314,6 +316,9 @@ export default function App() {
           )}
         </div>
         <div className="toolbar-right">
+          <button className="theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {theme === 'dark' ? '☀' : '☾'}
+          </button>
           <button className={`scan-btn ${scanning ? 'scanning' : ''}`} onClick={() => handleScan()} disabled={scanning}>
             {scanning ? `${pct}%${scanProgress.file ? ` — ${scanProgress.file}` : ''}` : albums.length === 0 ? 'Import Library' : 'Rescan'}
           </button>

@@ -228,6 +228,15 @@
 
 .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
+.theme-toggle {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; line-height: 1;
+  color: rgba(var(--ink),0.35);
+  padding: 4px 6px; border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.theme-toggle:hover { color: rgba(var(--ink),0.75); background: rgba(var(--ink),0.06); }
+
 /* ── Sort switcher ───────────────────────────────────────────────────────── */
 .sort-switcher {
   display: flex;
