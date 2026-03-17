@@ -13,6 +13,8 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
   const [pickingFolder, setPickingFolder] = useState(false)
   const [organising, setOrganising] = useState(false)
   const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number; not_found?: number } | null>(null)
+  const [purging, setPurging] = useState(false)
+  const [purgeResult, setPurgeResult] = useState<{ removed?: number; checked?: number } | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -167,6 +169,39 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
                 </div>
               </div>
             )}
+
+            <div className="settings-row">
+              <div className="settings-row-label">Fix Library</div>
+              <div className="enrich-row">
+                <button
+                  className={`enrich-btn ${purging ? 'running' : ''}`}
+                  disabled={purging}
+                  onClick={async () => {
+                    setPurging(true)
+                    setPurgeResult(null)
+                    try {
+                      const r = await fetch('http://localhost:8000/library/purge-stale', { method: 'POST' })
+                      const data = await r.json()
+                      setPurgeResult(data)
+                    } finally {
+                      setPurging(false)
+                    }
+                  }}
+                >
+                  {purging ? 'Fixing…' : 'Remove stale entries'}
+                </button>
+                {purgeResult && !purging && (
+                  <span className="enrich-result">
+                    {purgeResult.removed === 0
+                      ? `All good — ${purgeResult.checked} tracks checked`
+                      : `Removed ${purgeResult.removed} ghost entries from ${purgeResult.checked} checked`}
+                  </span>
+                )}
+              </div>
+              <div className="settings-folder-hint">
+                Removes tracks from the database whose files have been moved or deleted. Run this if you see duplicates or tracks that won't play.
+              </div>
+            </div>
           </>}
 
           {tab === 'enrichment' && <>

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from .database import init_db, get_db, SessionLocal, Track, Album
-from .scanner import scan_library
+from .scanner import scan_library, purge_stale_tracks
 from .deduplicator import deduplicate_library
 from .config import load_config, save_config
 from .enricher import enrich_library, enrich_album, get_release_detail, normalise_query, discogs_search
@@ -80,6 +80,12 @@ async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
                 scan_status["current_file"] = os.path.basename(filepath)
 
             result = scan_library(req.folder_path, db, progress_callback=progress)
+
+            # Purge stale tracks (files moved/deleted since last scan)
+            scan_status["stage"] = "purging"
+            scan_status["current_file"] = "Removing stale entries..."
+            purge_result = purge_stale_tracks(req.folder_path, db)
+            result["purged"] = purge_result["removed"]
 
             scan_status["stage"] = "deduplicating"
             scan_status["current_file"] = "Deduplicating library..."
@@ -522,6 +528,17 @@ def update_album(album_id: int, payload: dict, db: Session = Depends(get_db)):
     album.updated_at = datetime.utcnow()
     db.commit()
     return {'success': True}
+
+
+@app.post('/library/purge-stale')
+def purge_stale(db: Session = Depends(get_db)):
+    """Remove tracks whose files no longer exist on disk, then rebuild albums."""
+    config = load_config()
+    library_path = config.get("library", {}).get("path", "")
+    if not library_path:
+        raise HTTPException(status_code=400, detail="Library path not configured")
+    result = purge_stale_tracks(library_path, db)
+    return {"success": True, "removed": result["removed"], "checked": result["checked"]}
 
 
 @app.delete('/library/clear')

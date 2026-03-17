@@ -110,6 +110,36 @@ def scan_library(folder_path: str, db, progress_callback=None):
     return stats
 
 
+def purge_stale_tracks(library_path: str, db) -> dict:
+    """
+    Remove Track records whose files no longer exist on disk.
+
+    Should be called after every scan so that moved/deleted files don't linger
+    in the DB as ghost entries (causing duplicates and failed playback).
+
+    Returns { 'removed': int, 'checked': int }.
+    """
+    from .database import Track
+
+    library_path = os.path.normpath(os.path.expanduser(library_path))
+    tracks = db.query(Track).filter(
+        Track.filepath.like(f"{library_path}%")
+    ).all()
+
+    removed = 0
+    for t in tracks:
+        if not os.path.exists(t.filepath):
+            db.delete(t)
+            removed += 1
+
+    if removed:
+        db.commit()
+        rebuild_albums(library_path, db)
+        logger.info(f"Purged {removed} stale track(s) from DB")
+
+    return {"checked": len(tracks), "removed": removed}
+
+
 def read_tags(filepath: str) -> dict | None:
     """Read metadata tags from a FLAC or MP3 file."""
     ext = Path(filepath).suffix.lower()
