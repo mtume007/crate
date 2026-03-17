@@ -669,9 +669,11 @@ function CoverflowView({ albums, onPlayTrack }: {
   albums: Album[]
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
 }) {
-  const [activeIdx, setActiveIdx] = useState(0)
-  const [tracks, setTracks]       = useState<Track[]>([])
+  const [activeIdx, setActiveIdx]   = useState(0)
+  const [trackIdx,  setTrackIdx]    = useState(-1)   // -1 = no track focused
+  const [tracks, setTracks]         = useState<Track[]>([])
   const [tracksLoading, setTracksLoading] = useState(false)
+  const tracklistRef = useRef<HTMLDivElement>(null)
 
   // Drag state
   const [dragOffsetPx, setDragOffsetPx] = useState(0)
@@ -683,6 +685,9 @@ function CoverflowView({ albums, onPlayTrack }: {
   const activeAlbum = albums[safeIdx]
   const activeId    = activeAlbum?.id ?? -1
 
+  // Reset track focus when album changes
+  useEffect(() => { setTrackIdx(-1) }, [activeId])
+
   // Fetch tracks whenever the centred album changes
   useEffect(() => {
     if (!activeAlbum) return
@@ -693,16 +698,46 @@ function CoverflowView({ albums, onPlayTrack }: {
       .catch(() => setTracksLoading(false))
   }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keyboard navigation — only fires when focus is not in a text input
+  // Scroll focused track row into view
+  useEffect(() => {
+    if (trackIdx < 0 || !tracklistRef.current) return
+    const row = tracklistRef.current.children[trackIdx] as HTMLElement | undefined
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [trackIdx])
+
+  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (e.key === 'ArrowLeft')  setActiveIdx(i => Math.max(0, i - 1))
-      if (e.key === 'ArrowRight') setActiveIdx(i => Math.min(albums.length - 1, i + 1))
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setActiveIdx(i => Math.max(0, i - 1))
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setActiveIdx(i => Math.min(albums.length - 1, i + 1))
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setTrackIdx(i => {
+          if (tracks.length === 0) return -1
+          return Math.min(tracks.length - 1, i + 1)
+        })
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setTrackIdx(i => {
+          if (i <= 0) return -1   // back to album strip focus
+          return i - 1
+        })
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (trackIdx >= 0 && tracks[trackIdx] && activeAlbum) {
+          onPlayTrack(tracks[trackIdx], tracks, activeAlbum)
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [albums.length])
+  }, [albums.length, tracks, trackIdx, activeAlbum, onPlayTrack])
 
   // Pointer drag handlers
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -772,12 +807,12 @@ function CoverflowView({ albums, onPlayTrack }: {
               onClick={() => { if (!didDragRef.current && dist !== 0) setActiveIdx(idx) }}
             >
               {url
-                ? <img src={url} alt={album.title} className="cf-art" />
+                ? <img src={url} alt={album.title} className="cf-art" draggable={false} />
                 : <ArtworkPlaceholder title={album.title} />}
               {/* Reflection */}
               <div className="cf-reflection" aria-hidden>
                 {url
-                  ? <img src={url} alt="" className="cf-art" />
+                  ? <img src={url} alt="" className="cf-art" draggable={false} />
                   : <ArtworkPlaceholder title={album.title} />}
               </div>
             </div>
@@ -806,13 +841,15 @@ function CoverflowView({ albums, onPlayTrack }: {
               )}
             </div>
           </div>
-          <div className="cf-tracklist">
+          <div className="cf-tracklist" ref={tracklistRef}>
             {tracksLoading && <div className="cf-loading">Loading…</div>}
             {!tracksLoading && tracks.map((track, i) => (
               <div
                 key={track.id}
-                className="cf-track"
-                onClick={() => onPlayTrack(track, tracks, activeAlbum)}
+                className={`cf-track${i === trackIdx ? ' cf-track--focused' : ''}`}
+                onClick={() => { setTrackIdx(i); onPlayTrack(track, tracks, activeAlbum) }}
+                onMouseEnter={() => setTrackIdx(i)}
+                onMouseLeave={() => setTrackIdx(-1)}
               >
                 <span className="cf-track-num">
                   {track.track_number ? track.track_number.split('/')[0].padStart(2, ' ') : String(i + 1).padStart(2, ' ')}
