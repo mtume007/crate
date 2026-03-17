@@ -1,46 +1,40 @@
 # Crate
 
-A local-first DJ library app for macOS. Built for collectors who care about the details.
+A local-first music library for collectors and DJs.
+
+Crate scans your music folder, identifies every album using the Discogs database, and presents your collection in a clean, considered interface. It treats your music the way you do — seriously.
 
 ---
 
 ## What it does
 
-Crate scans your music folder, builds a local library, and lets you browse your collection the way it deserves — full artwork grid, instant search, track-level detail. No cloud sync. No subscriptions. Your files, your database.
-
-**Enrichment** — Crate connects to Discogs to fill in the gaps: original release year, label, genre, catalogue number. Claude normalises the search query, Discogs finds the match, Claude validates it. You can also paste a Discogs URL directly or use the manual matcher.
-
-**Playback** — Click any track to play. Queue follows the album. Progress bar, volume, prev/next.
-
-**Deduplication** — Three-pass dedup: MusicBrainz ID match → fuzzy title match → Claude as tiebreaker.
+- **Scans** your local music folder and reads file tags
+- **Enriches** every album via Discogs — label, pressing, year, format, artwork
+- **AI-assisted matching** — Claude normalises messy tags and validates results
+- **Review panel** for anything the pipeline isn't confident about
+- **Single-album add flow** — drop a folder, pick the pressing, confirm
+- Built on **HULDRA** — a purpose-built design system. One font, one accent, nothing generic
 
 ---
 
-## Stack
+## Requirements
 
-| Layer | Tech |
-|---|---|
-| Frontend | React 19 + TypeScript (Vite) |
-| Backend | FastAPI + SQLAlchemy + SQLite |
-| Desktop | Electron 33 |
-| AI | Claude (Anthropic API) |
-| Enrichment | Discogs API |
-| Fonts | Outfit (display) · SF Mono (data) |
+- macOS (Apple Silicon — arm64)
+- Python 3.12
+- Node.js 18+
+- An [Anthropic API key](https://console.anthropic.com/) (free tier works)
+- A [Discogs token](https://www.discogs.com/settings/developers) (free)
 
 ---
 
 ## Setup
 
-**Requirements:** Node 18+, Python 3.12+, macOS
+Clone the repo and install dependencies:
 
 ```bash
 git clone https://github.com/mtume007/crate.git
 cd crate
-
-# Frontend
 npm install
-
-# Python env
 cd src-python
 python3 -m venv venv
 source venv/bin/activate
@@ -48,55 +42,58 @@ pip install -r requirements.txt
 cd ..
 ```
 
-Create `~/.crate/config.json`:
-
-```json
-{
-  "ai": {
-    "provider": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": "your-anthropic-key"
-  },
-  "enrichment": {
-    "discogs_token": "your-discogs-token",
-    "auto_enrich": false,
-    "source": "discogs"
-  },
-  "theme": {
-    "accent": "#e8a045",
-    "base": "#080808",
-    "card": "#0f0f0f",
-    "hover": "#161616",
-    "border": "#1e1e1e",
-    "radius": 8,
-    "font": "Outfit"
-  },
-  "library": {
-    "path": "/path/to/your/music"
-  }
-}
-```
-
-```bash
-~/crate/start.sh
-```
-
-Starts FastAPI on `:8000`, Vite on `:1420`, launches Electron.
+On first launch, Crate will walk you through selecting your music folder and entering your API keys. Everything is saved to `~/.crate/config.json`.
 
 ---
 
-## Design
+## Running in development
 
-HULDRA design system — dark, minimal, no decoration that doesn't earn its place. Amber accent runs through interactive elements. Outfit for titles, SF Mono for data. All values come from config tokens, nothing hardcoded.
+```bash
+bash start.sh
+```
+
+Or in two terminals:
+
+```bash
+npm run dev          # Terminal 1 — Vite frontend
+npm run electron:dev # Terminal 2 — Electron
+```
+
+Backend runs on `localhost:8000`, frontend on `localhost:1420`.
+
+---
+
+## Building
+
+```bash
+npm run electron:build
+```
+
+Output lands in `dist-electron/` as a `.dmg` for macOS arm64.
+
+---
+
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React + TypeScript + Vite |
+| Backend | FastAPI + SQLAlchemy + SQLite |
+| Desktop | Electron 33 |
+| AI | Claude Sonnet via Anthropic API |
+| Data | Discogs API |
+| Config | `~/.crate/config.json` |
 
 ---
 
 ## Status
 
-Active development. Core library, playback, and Discogs enrichment are working. Sets, Listening, and smart tagging are placeholders.
+Early development. Works well for personal use — 208 albums, 2,516 tracks enriched and counting. Not yet packaged for general distribution.
 
 ---
 
-## License
+## Design
 
-MIT
+Crate is built on HULDRA — a personal design system. Dark palette, Martian Mono throughout, amber accent on structural labels only. The collection is the protagonist. The UI is the room it lives in.
+
+[Design overview →](https://mtume007.github.io/crate/huldra.html)
