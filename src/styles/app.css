@@ -1624,3 +1624,92 @@
 .ctx-item:hover { background: rgba(var(--ink),0.06); }
 .ctx-item--danger { color: rgba(var(--c-error),0.85); }
 .ctx-item--danger:hover { background: rgba(var(--c-error),0.08); }
+
+/* ── Settings: folder picker ────────────────────────────────────────────── */
+.settings-folder-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-folder-path {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(var(--ink),0.7);
+  background: rgba(var(--ink),0.04);
+  border: 1px solid rgba(var(--ink),0.1);
+  border-radius: 4px;
+  padding: 9px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* shows end of path (deepest folder) */
+  text-align: left;
+}
+.settings-folder-empty {
+  color: rgba(var(--ink),0.3);
+  font-style: italic;
+}
+.settings-folder-btn {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  background: none;
+  border: 1px solid rgba(var(--ink),0.18);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(var(--ink),0.7);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.settings-folder-btn:hover {
+  background: rgba(var(--ink),0.06);
+  border-color: rgba(var(--ink),0.3);
+  color: rgba(var(--ink),0.9);
+}
+.settings-folder-btn:disabled { opacity: 0.5; cursor: default; }
+.settings-folder-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(var(--ink),0.32);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+/* ── Drop overlay ────────────────────────────────────────────────────────── */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(var(--surface),0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.drop-overlay-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 60px;
+  border: 1.5px dashed rgba(var(--c-accent-rgb), 0.5);
+  border-radius: 12px;
+  background: rgba(var(--c-accent-rgb), 0.04);
+}
+.drop-overlay-icon {
+  font-size: 36px;
+  color: var(--c-accent);
+  line-height: 1;
+}
+.drop-overlay-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--c-accent);
+  text-transform: uppercase;
+}

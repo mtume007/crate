@@ -423,6 +423,16 @@ def update_album(album_id: int, payload: dict, db: Session = Depends(get_db)):
     return {'success': True}
 
 
+@app.delete('/library/clear')
+def clear_library(db: Session = Depends(get_db)):
+    """Remove all albums and tracks — used when switching library folders."""
+    from .database import Track
+    db.query(Track).delete()
+    db.query(Album).delete()
+    db.commit()
+    return {'success': True}
+
+
 @app.delete('/library/albums/{album_id}')
 def delete_album(album_id: int, db: Session = Depends(get_db)):
     album = db.query(Album).filter(Album.id == album_id).first()

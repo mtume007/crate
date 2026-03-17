@@ -95,8 +95,10 @@ export default function App() {
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number; album?: Album; track?: Track; trackAlbum?: Album
   } | null>(null)
+  const [isDroppingFile, setIsDroppingFile] = useState(false)
 
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef    = useRef<HTMLAudioElement | null>(null)
+  const dragCounter = useRef(0)
 
   const loadLibrary = useCallback(async () => {
     try {
@@ -223,6 +225,45 @@ export default function App() {
     } catch { /* silent */ }
   }
 
+  // Called when the user picks a new library folder (Settings or drag & drop)
+  const handleLibraryChange = async (newPath: string) => {
+    // Stop playback
+    audioRef.current?.pause()
+    setCurrentTrack(null)
+    setCurrentAlbum(null)
+    setIsPlaying(false)
+    setSelectedAlbum(null)
+    // Clear the DB
+    try { await fetch('http://localhost:8000/library/clear', { method: 'DELETE' }) } catch { /* silent */ }
+    // Update local state + load empty library
+    setLibraryPath(newPath)
+    await loadLibrary()
+    // Start scan with the new path
+    handleScan(newPath)
+  }
+
+  // Drag-and-drop a folder onto the window
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current++
+    if (dragCounter.current === 1) setIsDroppingFile(true)
+  }
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) setIsDroppingFile(false)
+  }
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault() }
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current = 0
+    setIsDroppingFile(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    const path = (file as any).path
+    if (path) handleLibraryChange(path)
+  }
+
   useEffect(() => {
     if (!scanning) return
     const interval = setInterval(async () => {
@@ -291,7 +332,13 @@ export default function App() {
   })
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <aside className={`sidebar ${sidebarExpanded ? 'expanded' : ''}`}
         onMouseEnter={() => setSidebarExpanded(true)}
         onMouseLeave={() => setSidebarExpanded(false)}>
@@ -403,7 +450,7 @@ export default function App() {
         />
       )}
 
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} onLibraryChange={handleLibraryChange} />}
       {showReview && <ReviewPanel onClose={() => setShowReview(false)} />}
       <AddModal
         album={pendingAlbum}
@@ -413,6 +460,15 @@ export default function App() {
         onOpenSettings={() => { setPendingAlbum(null); setShowSettings(true) }}
       />
       {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
+
+      {isDroppingFile && (
+        <div className="drop-overlay">
+          <div className="drop-overlay-box">
+            <div className="drop-overlay-icon">⊕</div>
+            <div className="drop-overlay-label">Drop folder to import</div>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <ContextMenu

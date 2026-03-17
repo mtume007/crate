@@ -7,9 +7,10 @@ interface Config {
   enrichment: { discogs_token: string; auto_enrich: boolean; source: string }
 }
 
-export default function Settings({ onClose }: { onClose: () => void }) {
+export default function Settings({ onClose, onLibraryChange }: { onClose: () => void; onLibraryChange?: (path: string) => void }) {
   const [config, setConfig] = useState<Config | null>(null)
   const [tab, setTab] = useState<'ai' | 'library' | 'enrichment'>('ai')
+  const [pickingFolder, setPickingFolder] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -75,10 +76,36 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </>}
 
           {tab === 'library' && <>
-            <div className="settings-row">
-              <div className="settings-row-label">Library Path</div>
-              <input className="settings-input" value={config.library.path}
-                onChange={e => set('library', 'path', e.target.value)} />
+            <div className="settings-row settings-row--folder">
+              <div className="settings-row-label">Music Folder</div>
+              <div className="settings-folder-wrap">
+                <div className="settings-folder-path">
+                  {config.library.path || <span className="settings-folder-empty">No folder selected</span>}
+                </div>
+                <button
+                  className="settings-folder-btn"
+                  disabled={pickingFolder}
+                  onClick={async () => {
+                    setPickingFolder(true)
+                    try {
+                      const picked = await (window as any).electronAPI?.selectFolder()
+                      if (picked && picked !== config.library.path) {
+                        set('library', 'path', picked)
+                        await updateConfig({ library: { path: picked } })
+                        onLibraryChange?.(picked)
+                        onClose()
+                      }
+                    } finally {
+                      setPickingFolder(false)
+                    }
+                  }}
+                >
+                  {pickingFolder ? 'Choosing…' : 'Choose Folder'}
+                </button>
+              </div>
+              <div className="settings-folder-hint">
+                Changing the folder will clear your current library and rescan automatically.
+              </div>
             </div>
           </>}
 
