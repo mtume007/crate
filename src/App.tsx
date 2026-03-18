@@ -647,12 +647,13 @@ function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onR
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const aiClassifiedCount = albums.filter(a => a.shelf_key).length
+  const allClassified = aiClassifiedCount === albums.length && albums.length > 0
 
-  async function handleClassify() {
+  async function handleClassify(force: boolean) {
     setClassifying(true)
     setClassifyProgress({ current: 0, total: albums.length, album: '' })
     try {
-      await startClassifyShelf(false)
+      await startClassifyShelf(force)
       pollRef.current = setInterval(async () => {
         try {
           const st = await fetchClassifyStatus()
@@ -686,9 +687,16 @@ function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onR
             {classifyProgress.album ? ` · ${classifyProgress.album}` : ''}
           </span>
         ) : (
-          <button className="shelf-classify-btn" onClick={handleClassify} disabled={classifying}>
-            AI classify shelves
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {!allClassified && (
+              <button className="shelf-classify-btn" onClick={() => handleClassify(false)} disabled={classifying}>
+                Classify new
+              </button>
+            )}
+            <button className="shelf-classify-btn" onClick={() => handleClassify(true)} disabled={classifying}>
+              Redo all
+            </button>
+          </div>
         )}
       </div>
 
