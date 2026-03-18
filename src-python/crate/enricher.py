@@ -354,16 +354,28 @@ def enrich_library(progress_callback=None) -> dict:
 
 # ── Shelf key classification ──────────────────────────────────────────────────
 
-def classify_shelf_key(album: Album, api_key: str) -> str | None:
+def classify_shelf_key(album: Album, api_key: str,
+                        track_titles: list[str] | None = None,
+                        existing_keys: list[str] | None = None) -> str | None:
     """
     Ask Claude to assign a single canonical shelf label for this album.
+    - track_titles: all track titles from the DB for this album
+    - existing_keys: shelf keys already in use — Claude will prefer to reuse these
     Returns a clean label like "Atmospheric Drum n Bass" or None on failure.
     """
-    # Build a rich context string from all available metadata
     discogs_styles = album.enriched_style or ''
     discogs_genre  = album.enriched_genre or album.genre or ''
+    tracks_str     = ', '.join(track_titles) if track_titles else '(unknown)'
 
-    prompt = f"""You are organising a DJ's physical record collection into labelled shelf sections.
+    existing_block = ''
+    if existing_keys:
+        existing_block = f"""
+Shelf labels already in use in this collection (STRONGLY prefer reusing one of these
+if it fits — only invent a new label if none of these match):
+{chr(10).join(f'  - {k}' for k in sorted(existing_keys))}
+"""
+
+    prompt = f"""You are organising a serious DJ's record collection into labelled shelf sections.
 
 Album metadata:
   Title:          {album.title or ''}
@@ -373,19 +385,21 @@ Album metadata:
   Year:           {album.enriched_year or album.year or ''}
   Discogs genre:  {discogs_genre}
   Discogs styles: {discogs_styles}
-
-Task: assign ONE shelf label — the subgenre that best describes where this record belongs in a serious DJ collection.
+  Track titles:   {tracks_str}
+{existing_block}
+Task: assign ONE shelf label — the subgenre that best describes where this record belongs.
 
 Rules:
-- Read ALL the metadata holistically. The album title and label are often the strongest signal.
-- If the Discogs styles are clearly wrong or mismatched with the title/label context, override them.
-- Be specific when you're confident: "Atmospheric Drum n Bass" beats "Drum n Bass".
-- Use labels DJs actually use: "Liquid Funk", "Jump Up", "Tech House", "Deep Techno", "Breakbeat", "Jungle", "Ambient Techno", "Neurofunk", "UK Garage", etc.
-- Be consistent — the same subgenre should always get the same label string.
-- If you genuinely can't determine the subgenre, use the broadest genre that fits.
+- Use ALL metadata holistically. Track titles and artist name are strong signals.
+- The artist name often encodes genre: "DJ TRAX", "MC", "Jungle", "Breaks" in the name are clues.
+- Catalog number prefixes often indicate a label's genre (e.g. MOVING SHADOW = DnB, WARP = IDM).
+- Track durations of 7–10 min usually mean DJ-format electronic music, not ambient albums.
+- Discogs styles are a useful hint but are often wrong — override them if other signals disagree.
+- Be specific when confident: "Liquid Drum n Bass" beats "Drum n Bass" beats "Electronic".
+- If you genuinely cannot tell, use the broadest genre that fits rather than guessing a subgenre.
 - Keep it short: 1–4 words, title case.
 
-Reply ONLY with JSON: {{"shelf_key": "Atmospheric Drum n Bass"}}"""
+Reply ONLY with JSON: {{"shelf_key": "Liquid Drum n Bass"}}"""
 
     try:
         resp = httpx.post(
@@ -398,6 +412,7 @@ Reply ONLY with JSON: {{"shelf_key": "Atmospheric Drum n Bass"}}"""
             json={
                 'model': 'claude-haiku-4-5-20251001',
                 'max_tokens': 60,
+                'temperature': 0,
                 'messages': [{'role': 'user', 'content': prompt}]
             },
             timeout=15
@@ -416,8 +431,9 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
     """
     Run shelf-key classification for all albums that don't have one yet
     (or all albums if force=True). Opens its own DB session.
+    Passes existing shelf keys and track titles to each classification call.
     """
-    from .database import SessionLocal
+    from .database import SessionLocal, Track
 
     config  = load_config()
     api_key = config.get('ai', {}).get('api_key', '')
@@ -436,10 +452,28 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
         failed     = 0
         logger.info(f'classify_library_shelf_keys: {total} albums to classify')
 
+        # Seed existing keys from albums that are NOT being reclassified
+        existing_keys: set[str] = set()
+        if not force:
+            already_done = db.query(Album.shelf_key).filter(Album.shelf_key != None).all()
+            existing_keys = {row[0] for row in already_done if row[0]}
+
         for i, album in enumerate(albums):
-            key = classify_shelf_key(album, api_key)
+            # Fetch track titles for this album to give Claude better context
+            tracks = db.query(Track.title).filter(
+                Track.filepath.like(f"{album.folder_path}%"),
+                Track.title != None
+            ).all()
+            track_titles = [t[0] for t in tracks if t[0]]
+
+            key = classify_shelf_key(
+                album, api_key,
+                track_titles=track_titles,
+                existing_keys=sorted(existing_keys) if existing_keys else None
+            )
             if key:
                 album.shelf_key = key
+                existing_keys.add(key)   # grow the vocab so later albums see it
                 classified += 1
                 logger.info(f'  → "{key}" for {album.artist} — {album.title}')
             else:
@@ -450,7 +484,6 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
             if progress_callback:
                 progress_callback(i + 1, total, album.title or '')
 
-            # Haiku is fast; brief pause keeps rate limits comfortable
             time.sleep(0.3)
 
         logger.info(f'classify_library_shelf_keys: done — classified={classified}, failed={failed}')
