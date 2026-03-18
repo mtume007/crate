@@ -15,6 +15,7 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
   const [organiseResult, setOrganiseResult] = useState<{ moved?: number; skipped?: number; errors?: number; not_found?: number } | null>(null)
   const [purging, setPurging] = useState(false)
   const [purgeResult, setPurgeResult] = useState<{ success?: boolean; removed?: number; checked?: number; error?: string } | null>(null)
+  const [clearRescanning, setClearRescanning] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [enrichStatus, setEnrichStatus] = useState<{ enriched?: number; failed?: number; total?: number; current?: number; current_album?: string; running?: boolean; error?: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -109,6 +110,32 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
               </div>
               <div className="settings-folder-hint">
                 Changing the folder will clear your current library and rescan automatically.
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-label">Clear &amp; Rescan</div>
+              <div className="enrich-row">
+                <button
+                  className={`enrich-btn ${clearRescanning ? 'running' : ''}`}
+                  disabled={clearRescanning || !config.library.path}
+                  onClick={async () => {
+                    if (!config.library.path) return
+                    setClearRescanning(true)
+                    try {
+                      await fetch('http://localhost:8000/library/clear', { method: 'DELETE' })
+                      onLibraryChange?.(config.library.path)
+                      onClose()
+                    } finally {
+                      setClearRescanning(false)
+                    }
+                  }}
+                >
+                  {clearRescanning ? 'Clearing…' : 'Clear & Rescan'}
+                </button>
+              </div>
+              <div className="settings-folder-hint">
+                Wipes the database and rebuilds it from scratch. Use this if you see duplicates or tracks that won't play.
               </div>
             </div>
 
