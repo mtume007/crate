@@ -4,7 +4,7 @@ import { fetchConfig, updateConfig } from './api'
 interface Config {
   ai: { provider: string; model: string; api_key: string }
   library: { path: string; organise: boolean }
-  enrichment: { discogs_token: string; auto_enrich: boolean; source: string }
+  enrichment: { discogs_token: string; lastfm_api_key: string; auto_enrich: boolean; source: string }
 }
 
 export default function Settings({ onClose, onLibraryChange }: { onClose: () => void; onLibraryChange?: (path: string) => void }) {
@@ -240,6 +240,17 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
                 value={config.enrichment?.discogs_token || ''}
                 onChange={e => set('enrichment', 'discogs_token', e.target.value)}
                 placeholder="Your Discogs personal access token" />
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-row-label">Last.fm API Key</div>
+              <input className="settings-input" type="password"
+                value={config.enrichment?.lastfm_api_key || ''}
+                onChange={e => set('enrichment', 'lastfm_api_key', e.target.value)}
+                placeholder="Get free key at last.fm/api" />
+              <div className="settings-folder-hint">
+                Used for genre tagging — Last.fm crowd-sourced tags are much more accurate than Discogs for shelf classification.
+              </div>
             </div>
 
             <div className="settings-row">

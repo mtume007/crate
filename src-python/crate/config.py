@@ -25,6 +25,7 @@ DEFAULTS = {
     },
     "enrichment": {
         "discogs_token": "",
+        "lastfm_api_key": "",
         "auto_enrich": False,
         "source": "enriched"
     }

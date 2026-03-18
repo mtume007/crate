@@ -352,52 +352,134 @@ def enrich_library(progress_callback=None) -> dict:
         db.close()
 
 
+# ── Last.fm tag lookup ────────────────────────────────────────────────────────
+
+LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/'
+
+def fetch_lastfm_tags(artist: str, title: str, api_key: str) -> dict:
+    """
+    Fetch Last.fm tags for an artist and album.
+    Returns { 'artist': [(tag, weight), ...], 'album': [(tag, weight), ...] }
+    Both lists are sorted by weight descending, limited to top 8.
+    """
+    headers = {'User-Agent': 'CrateApp/1.0'}
+    result = {'artist': [], 'album': []}
+
+    # Artist tags — very reliable for genre
+    try:
+        resp = httpx.get(LASTFM_BASE, params={
+            'method': 'artist.getTopTags',
+            'artist': artist,
+            'api_key': api_key,
+            'format': 'json',
+            'autocorrect': 1,
+        }, headers=headers, timeout=8)
+        resp.raise_for_status()
+        tags = resp.json().get('toptags', {}).get('tag', [])
+        result['artist'] = [
+            (t['name'], int(t['count']))
+            for t in tags
+            if int(t.get('count', 0)) > 5
+        ][:8]
+        time.sleep(0.2)
+    except Exception as e:
+        logger.warning(f'Last.fm artist tags failed for {artist}: {e}')
+
+    # Album tags — per-release accuracy
+    try:
+        resp = httpx.get(LASTFM_BASE, params={
+            'method': 'album.getTopTags',
+            'artist': artist,
+            'album': title,
+            'api_key': api_key,
+            'format': 'json',
+            'autocorrect': 1,
+        }, headers=headers, timeout=8)
+        resp.raise_for_status()
+        tags = resp.json().get('toptags', {}).get('tag', [])
+        result['album'] = [
+            (t['name'], int(t['count']))
+            for t in tags
+            if int(t.get('count', 0)) > 5
+        ][:8]
+        time.sleep(0.2)
+    except Exception as e:
+        logger.warning(f'Last.fm album tags failed for {artist} — {title}: {e}')
+
+    return result
+
+
+def _fmt_tags(tags: list) -> str:
+    if not tags:
+        return '(none found)'
+    return ', '.join(f'{name} ({weight})' for name, weight in tags)
+
+
 # ── Shelf key classification ──────────────────────────────────────────────────
 
 def classify_shelf_key(album: Album, api_key: str,
                         track_titles: list[str] | None = None,
-                        existing_keys: list[str] | None = None) -> str | None:
+                        existing_keys: list[str] | None = None,
+                        lastfm_tags: dict | None = None) -> str | None:
     """
     Ask Claude to assign a single canonical shelf label for this album.
-    - track_titles: all track titles from the DB for this album
-    - existing_keys: shelf keys already in use — Claude will prefer to reuse these
+    - track_titles:  all track titles from the DB
+    - existing_keys: shelf keys already in use — Claude reuses these
+    - lastfm_tags:   {'artist': [(tag, weight),...], 'album': [(tag, weight),...]}
     Returns a clean label like "Atmospheric Drum n Bass" or None on failure.
     """
     discogs_styles = album.enriched_style or ''
     discogs_genre  = album.enriched_genre or album.genre or ''
     tracks_str     = ', '.join(track_titles) if track_titles else '(unknown)'
 
+    # ── Build Last.fm block ──────────────────────────────────────────────────
+    lfm_block = ''
+    if lastfm_tags:
+        artist_tags = lastfm_tags.get('artist', [])
+        album_tags  = lastfm_tags.get('album',  [])
+        if artist_tags or album_tags:
+            lfm_block = f"""
+LAST.FM TAGS — crowd-sourced by millions of listeners, HIGH confidence:
+  Artist tags: {_fmt_tags(artist_tags)}
+  Album tags:  {_fmt_tags(album_tags)}
+"""
+
+    # ── Build existing vocabulary block ────────────────────────────────────
     existing_block = ''
     if existing_keys:
         existing_block = f"""
-Shelf labels already in use in this collection (STRONGLY prefer reusing one of these
-if it fits — only invent a new label if none of these match):
+SHELF LABELS ALREADY IN USE — reuse one of these if it fits:
 {chr(10).join(f'  - {k}' for k in sorted(existing_keys))}
 """
 
     prompt = f"""You are organising a serious DJ's record collection into labelled shelf sections.
 
-Album metadata:
+─── HIGH-CONFIDENCE SOURCES (trust these first) ───────────────────────────
+{lfm_block if lfm_block else '  (no Last.fm data available)'}
+  Discogs genre:  {discogs_genre}
+  Discogs styles: {discogs_styles}
+
+─── SUPPORTING CONTEXT ────────────────────────────────────────────────────
   Title:          {album.title or ''}
   Artist:         {album.artist or ''}
   Label:          {album.enriched_label or album.label or ''}
   Catalog number: {album.enriched_catalog_num or album.catalog_num or ''}
   Year:           {album.enriched_year or album.year or ''}
-  Discogs genre:  {discogs_genre}
-  Discogs styles: {discogs_styles}
   Track titles:   {tracks_str}
 {existing_block}
-Task: assign ONE shelf label — the subgenre that best describes where this record belongs.
+─── TASK ───────────────────────────────────────────────────────────────────
+Assign ONE shelf label — the subgenre that best describes this record.
 
 Rules:
-- Use ALL metadata holistically. Track titles and artist name are strong signals.
-- The artist name often encodes genre: "DJ TRAX", "MC", "Jungle", "Breaks" in the name are clues.
-- Catalog number prefixes often indicate a label's genre (e.g. MOVING SHADOW = DnB, WARP = IDM).
-- Track durations of 7–10 min usually mean DJ-format electronic music, not ambient albums.
-- Discogs styles are a useful hint but are often wrong — override them if other signals disagree.
-- Be specific when confident: "Liquid Drum n Bass" beats "Drum n Bass" beats "Electronic".
-- If you genuinely cannot tell, use the broadest genre that fits rather than guessing a subgenre.
-- Keep it short: 1–4 words, title case.
+- Last.fm tags with weight ≥ 50 are near-certain — trust them above everything else.
+- Last.fm artist tags are the single most reliable signal. If top artist tag is
+  "drum and bass" with weight 80+, the shelf key IS a Drum n Bass subgenre.
+- Use Last.fm + Discogs together to narrow from genre → subgenre.
+- Artist name clues: "DJ TRAX", "MC", genre words in the name.
+- Reuse an existing shelf label if one fits — consistency matters.
+- Be specific when confident: "Liquid Drum n Bass" beats "Drum n Bass".
+- Broad genre is better than a wrong subgenre.
+- 1–4 words, title case.
 
 Reply ONLY with JSON: {{"shelf_key": "Liquid Drum n Bass"}}"""
 
@@ -435,10 +517,16 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
     """
     from .database import SessionLocal, Track
 
-    config  = load_config()
-    api_key = config.get('ai', {}).get('api_key', '')
+    config       = load_config()
+    api_key      = config.get('ai', {}).get('api_key', '')
+    lastfm_key   = config.get('enrichment', {}).get('lastfm_api_key', '')
     if not api_key:
         return {'error': 'No AI API key configured', 'total': 0, 'classified': 0, 'failed': 0}
+
+    if lastfm_key:
+        logger.info('classify_library_shelf_keys: Last.fm key found — will fetch tags per album')
+    else:
+        logger.info('classify_library_shelf_keys: no Last.fm key — using metadata only')
 
     db = SessionLocal()
     try:
@@ -459,21 +547,36 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
             existing_keys = {row[0] for row in already_done if row[0]}
 
         for i, album in enumerate(albums):
-            # Fetch track titles for this album to give Claude better context
+            # Fetch track titles for richer context
             tracks = db.query(Track.title).filter(
                 Track.filepath.like(f"{album.folder_path}%"),
                 Track.title != None
             ).all()
             track_titles = [t[0] for t in tracks if t[0]]
 
+            # Fetch Last.fm tags if key is configured
+            lastfm_tags = None
+            if lastfm_key and album.artist:
+                lastfm_tags = fetch_lastfm_tags(
+                    album.artist,
+                    album.title or '',
+                    lastfm_key
+                )
+                if lastfm_tags.get('artist') or lastfm_tags.get('album'):
+                    logger.info(
+                        f'  Last.fm: artist={_fmt_tags(lastfm_tags["artist"][:3])} '
+                        f'album={_fmt_tags(lastfm_tags["album"][:3])}'
+                    )
+
             key = classify_shelf_key(
                 album, api_key,
                 track_titles=track_titles,
-                existing_keys=sorted(existing_keys) if existing_keys else None
+                existing_keys=sorted(existing_keys) if existing_keys else None,
+                lastfm_tags=lastfm_tags
             )
             if key:
                 album.shelf_key = key
-                existing_keys.add(key)   # grow the vocab so later albums see it
+                existing_keys.add(key)
                 classified += 1
                 logger.info(f'  → "{key}" for {album.artist} — {album.title}')
             else:
@@ -484,7 +587,8 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
             if progress_callback:
                 progress_callback(i + 1, total, album.title or '')
 
-            time.sleep(0.3)
+            # Last.fm + Discogs rate limits — 2 extra calls per album so a little more breathing room
+            time.sleep(0.5 if lastfm_key else 0.3)
 
         logger.info(f'classify_library_shelf_keys: done — classified={classified}, failed={failed}')
         return {'total': total, 'classified': classified, 'failed': failed}
