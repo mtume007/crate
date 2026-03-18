@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@fontsource/martian-mono": "^5.2.7",
-    "@fontsource/outfit": "^5.2.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

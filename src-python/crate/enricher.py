@@ -238,8 +238,8 @@ def enrich_album(album: Album, db: Session, token: str, api_key: str,
 
     # Step 3 — Claude validates the match
     confidence = validate_match(album.artist, album.title, best, api_key)
-    if confidence < confidence_threshold:
-        logger.info(f'Low confidence ({confidence:.2f}) for {album.artist} — {album.title}, skipping')
+    if confidence < 0.45:
+        logger.info(f'Very low confidence ({confidence:.2f}) for {album.artist} — {album.title}, skipping')
         album.enriched_source = 'low_confidence'
         db.commit()
         return False
@@ -274,7 +274,11 @@ def enrich_album(album: Album, db: Session, token: str, api_key: str,
     formats = source.get('formats', [])
     fmt = formats[0].get('name') if formats else None
 
-    # Save
+    # Build discogs URL
+    raw_uri = source.get('uri') or f'/release/{discogs_id}'
+    discogs_url = raw_uri if raw_uri.startswith('http') else f'https://www.discogs.com{raw_uri}'
+
+    # Save all enriched fields regardless of confidence tier
     album.enriched_label       = label
     album.enriched_catalog_num = catalog_num
     album.enriched_genre       = genres[0] if genres else None
@@ -283,12 +287,17 @@ def enrich_album(album: Album, db: Session, token: str, api_key: str,
     album.enriched_country     = country
     album.enriched_format      = fmt
     album.enriched_discogs_id  = discogs_id
-    raw_uri = source.get('uri') or f'/release/{discogs_id}'
-    album.enriched_discogs_url = raw_uri if raw_uri.startswith('http') else f'https://www.discogs.com{raw_uri}'
-    album.enriched_source      = 'discogs'
+    album.enriched_discogs_url = discogs_url
+
+    if confidence >= confidence_threshold:
+        album.enriched_source = 'discogs'
+        logger.info(f'Enriched ({confidence:.2f}): {album.artist} — {album.title} → {discogs_url}')
+    else:
+        # Saved best guess but needs human confirmation
+        album.enriched_source = 'needs_review'
+        logger.info(f'Needs review ({confidence:.2f}): {album.artist} — {album.title} → {discogs_url}')
 
     db.commit()
-    logger.info(f'Enriched ({confidence:.2f}): {album.artist} — {album.title} (Discogs ID: {discogs_id}, Year: {original_year})')
     return True
 
 
@@ -310,12 +319,10 @@ def enrich_library(progress_callback=None) -> dict:
 
     db = SessionLocal()
     try:
-        # Pick up unenriched, failed, and low-confidence albums
+        # Pick up all albums that haven't been definitively matched yet
         albums = db.query(Album).filter(
-            or_(
-                Album.enriched_source.is_(None),
-                Album.enriched_source.in_(['not_found', 'low_confidence', 'retry'])
-            ),
+            Album.enriched_source != 'discogs',
+            Album.enriched_source != 'skipped',
             Album.artist != None,
             Album.title != None
         ).all()

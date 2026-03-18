@@ -556,8 +556,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
-const FONT_DISPLAY = "'Outfit', -apple-system, sans-serif"
-const FONT_DATA    = "'SF Mono', 'Courier New', monospace"
+const FONT_DISPLAY = "'Martian Mono', monospace"
+const FONT_DATA    = "'Martian Mono', monospace"
 
 const s: Record<string, React.CSSProperties> = {
   overlay: {
@@ -621,7 +621,7 @@ const s: Record<string, React.CSSProperties> = {
   tagline: {
     fontSize:      11,
     letterSpacing: '0.08em',
-    color:         'rgba(255,255,255,0.25)',
+    color:         'rgba(255,255,255,0.38)',
     textAlign:     'center',
     fontFamily:    FONT_DATA,
     textTransform: 'uppercase',
@@ -652,10 +652,10 @@ const s: Record<string, React.CSSProperties> = {
     color:        ACCENT_HEX,
   },
   flowLabel: {
-    fontSize:      8,
+    fontSize:      10,
     letterSpacing: '0.12em',
     textTransform: 'uppercase' as const,
-    color:         'rgba(255,255,255,0.3)',
+    color:         'rgba(255,255,255,0.38)',
     fontFamily:    FONT_DATA,
   },
   flowArrow: {
@@ -668,7 +668,7 @@ const s: Record<string, React.CSSProperties> = {
   flowDesc: {
     fontSize:   11,
     lineHeight: 1.65,
-    color:      'rgba(255,255,255,0.3)',
+    color:      'rgba(255,255,255,0.38)',
     textAlign:  'center',
     maxWidth:   360,
     marginTop:  4,
@@ -687,7 +687,7 @@ const s: Record<string, React.CSSProperties> = {
   stepSub: {
     fontSize:      11,
     letterSpacing: '0.01em',
-    color:         'rgba(255,255,255,0.28)',
+    color:         'rgba(255,255,255,0.42)',
     textAlign:     'center',
     lineHeight:    1.6,
     marginBottom:  4,
@@ -744,20 +744,20 @@ const s: Record<string, React.CSSProperties> = {
     fontFamily:    FONT_DISPLAY,
   },
   servicePill: {
-    fontSize:      7,
+    fontSize:      9,
     fontFamily:    FONT_DATA,
     letterSpacing: '0.12em',
     textTransform: 'uppercase' as const,
     color:         ACCENT_HEX,
-    opacity:       0.65,
+    opacity:       0.7,
     border:        `1px solid rgba(232,160,69,0.25)`,
     borderRadius:  4,
     padding:       '2px 6px',
   },
   serviceDesc: {
-    fontSize:   10,
+    fontSize:   11,
     lineHeight: 1.6,
-    color:      'rgba(255,255,255,0.28)',
+    color:      'rgba(255,255,255,0.42)',
     marginBottom: 10,
   },
 
@@ -786,21 +786,21 @@ const s: Record<string, React.CSSProperties> = {
     marginTop:      7,
   },
   progressStage: {
-    fontSize:   9,
+    fontSize:   10,
     fontFamily: FONT_DATA,
-    color:      'rgba(255,255,255,0.3)',
+    color:      'rgba(255,255,255,0.42)',
     letterSpacing: '0.06em',
   },
   progressPct: {
-    fontSize:   9,
+    fontSize:   10,
     fontFamily: FONT_DATA,
     color:      ACCENT_HEX,
-    opacity:    0.7,
+    opacity:    0.8,
   },
   scanFile: {
-    fontSize:     9,
+    fontSize:     10,
     fontFamily:   FONT_DATA,
-    color:        'rgba(255,255,255,0.2)',
+    color:        'rgba(255,255,255,0.35)',
     letterSpacing: '0.02em',
     textAlign:    'center',
     overflow:     'hidden',
@@ -833,9 +833,9 @@ const s: Record<string, React.CSSProperties> = {
     marginBottom: 4,
   },
   actionCardDesc: {
-    fontSize:   10,
+    fontSize:   11,
     lineHeight: 1.6,
-    color:      'rgba(255,255,255,0.28)',
+    color:      'rgba(255,255,255,0.42)',
   },
   actionCardBadge: {
     fontSize:   13,
@@ -850,9 +850,9 @@ const s: Record<string, React.CSSProperties> = {
     width:          20,
     height:         20,
     borderRadius:   '50%',
-    border:         '1px solid rgba(255,255,255,0.1)',
-    fontSize:       9,
-    color:          'rgba(255,255,255,0.25)',
+    border:         '1px solid rgba(255,255,255,0.12)',
+    fontSize:       10,
+    color:          'rgba(255,255,255,0.38)',
     fontFamily:     FONT_DATA,
   },
   actionCardActions: {
@@ -868,7 +868,7 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     color:        '#080808',
     fontFamily:   FONT_DATA,
-    fontSize:     9,
+    fontSize:     10,
     fontWeight:   500,
     letterSpacing: '0.08em',
     textTransform: 'uppercase' as const,
@@ -878,9 +878,9 @@ const s: Record<string, React.CSSProperties> = {
   actionSkipBtn: {
     background:   'none',
     border:       'none',
-    color:        'rgba(255,255,255,0.2)',
+    color:        'rgba(255,255,255,0.38)',
     fontFamily:   FONT_DATA,
-    fontSize:     9,
+    fontSize:     10,
     letterSpacing: '0.08em',
     textTransform: 'uppercase' as const,
     cursor:       'pointer',
@@ -912,11 +912,11 @@ const s: Record<string, React.CSSProperties> = {
   ghostBtn: {
     padding:      '7px 14px',
     background:   'none',
-    border:       '1px solid rgba(255,255,255,0.10)',
+    border:       '1px solid rgba(255,255,255,0.12)',
     borderRadius: 6,
-    color:        'rgba(255,255,255,0.40)',
+    color:        'rgba(255,255,255,0.48)',
     fontFamily:   FONT_DATA,
-    fontSize:     9,
+    fontSize:     10,
     letterSpacing: '0.08em',
     textTransform: 'uppercase' as const,
     cursor:       'pointer',
@@ -927,9 +927,9 @@ const s: Record<string, React.CSSProperties> = {
   skipBtn: {
     background:   'none',
     border:       'none',
-    color:        'rgba(255,255,255,0.18)',
+    color:        'rgba(255,255,255,0.35)',
     fontFamily:   FONT_DATA,
-    fontSize:     8,
+    fontSize:     10,
     letterSpacing: '0.14em',
     textTransform: 'uppercase' as const,
     cursor:       'pointer',
@@ -952,10 +952,10 @@ const s: Record<string, React.CSSProperties> = {
   },
   code: {
     fontFamily:  FONT_DATA,
-    fontSize:    9,
+    fontSize:    11,
     background:  'rgba(255,255,255,0.07)',
     borderRadius: 3,
     padding:     '1px 4px',
-    color:       'rgba(255,255,255,0.45)',
+    color:       'rgba(255,255,255,0.55)',
   },
 }

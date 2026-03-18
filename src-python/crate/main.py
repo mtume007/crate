@@ -513,6 +513,16 @@ def skip_album(album_id: int, db: Session = Depends(get_db)):
     return {'success': True}
 
 
+@app.post('/library/enrich/confirm/{album_id}')
+def confirm_album(album_id: int, db: Session = Depends(get_db)):
+    """Promote a needs_review album to fully confirmed discogs match."""
+    album = db.query(Album).filter(Album.id == album_id).first()
+    if album and album.enriched_source == 'needs_review':
+        album.enriched_source = 'discogs'
+        db.commit()
+    return {'success': True}
+
+
 # ── Album metadata PATCH ──────────────────────────────────────────────────────
 
 @app.patch('/library/albums/{album_id}')

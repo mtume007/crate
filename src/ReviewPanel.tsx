@@ -34,10 +34,18 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
       .then(data => {
         const unmatched = (data.albums as ReviewAlbum[]).filter(a =>
           (a.enriched_source == null ||
+           a.enriched_source === 'file' ||
            a.enriched_source === 'not_found' ||
-           a.enriched_source === 'low_confidence') &&
+           a.enriched_source === 'low_confidence' ||
+           a.enriched_source === 'needs_review') &&
           a.artist && a.title
         )
+        // Sort: needs_review first (has a suggestion), then the rest
+        unmatched.sort((a, b) => {
+          if (a.enriched_source === 'needs_review' && b.enriched_source !== 'needs_review') return -1
+          if (b.enriched_source === 'needs_review' && a.enriched_source !== 'needs_review') return 1
+          return 0
+        })
         setAlbums(unmatched)
       })
       .catch(() => setFetchError(true))
@@ -100,15 +108,49 @@ export default function ReviewPanel({ onClose }: { onClose: () => void }) {
           )}
 
           {albums.map(album => (
-            <div key={album.id} className="review-row">
+            <div key={album.id} className={`review-row${album.enriched_source === 'needs_review' ? ' review-row--suggestion' : ''}`}>
               <div className="review-album-info">
                 <div className="review-album-title">{album.title}</div>
                 <div className="review-album-artist">{album.artist}</div>
-                <div className="review-album-status">{album.enriched_source || 'unmatched'}</div>
+                <div className={`review-album-status review-album-status--${album.enriched_source || 'unmatched'}`}>
+                  {album.enriched_source === 'needs_review' ? 'suggestion' : (album.enriched_source || 'unmatched')}
+                </div>
               </div>
 
               <div className="review-actions">
-                {candidates[album.id] === undefined && (
+                {/* needs_review: show the suggested URL for quick confirm/reject */}
+                {album.enriched_source === 'needs_review' && album.enriched_discogs_url && candidates[album.id] === undefined && (
+                  <div className="review-suggestion">
+                    <a
+                      href={album.enriched_discogs_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="review-suggestion-link"
+                    >
+                      ↗ {album.enriched_discogs_url.replace('https://www.discogs.com', '')}
+                    </a>
+                    <button
+                      className="review-confirm-btn"
+                      onClick={async () => {
+                        await fetch('http://localhost:8000/library/enrich/confirm/' + album.id, { method: 'POST' })
+                        setAlbums(a => a.filter(x => x.id !== album.id))
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      className="review-reject-btn"
+                      onClick={() => {
+                        setCandidates(c => ({ ...c, [album.id]: undefined as any }))
+                        searchCandidates({ ...album, enriched_source: 'not_found' })
+                      }}
+                    >
+                      Wrong
+                    </button>
+                  </div>
+                )}
+
+                {album.enriched_source !== 'needs_review' && candidates[album.id] === undefined && (
                   <button
                     className="review-search-btn"
                     onClick={() => searchCandidates(album)}

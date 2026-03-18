@@ -1240,10 +1240,20 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
       <div className="detail-panel">
 
         <div className="detail-header">
-          <div className="detail-artwork">
-            {url
-              ? <img src={url} alt={album.title} />
-              : <ArtworkPlaceholder title={album.title} />}
+          <div className="detail-artwork-col">
+            <div className="detail-artwork">
+              {url
+                ? <img src={url} alt={album.title} />
+                : <ArtworkPlaceholder title={album.title} />}
+            </div>
+            <div className="detail-artwork-meta">
+              {(album.enriched_catalog_num || album.catalog_num) && (
+                <div className="detail-cat">{album.enriched_catalog_num || album.catalog_num}</div>
+              )}
+              {(album.enriched_label || album.label) && (
+                <div className="detail-label-sub">{album.enriched_label || album.label}</div>
+              )}
+            </div>
           </div>
           <div className="detail-meta">
             <div className="detail-meta-top">
@@ -1252,10 +1262,10 @@ function AlbumDetail({ album, onClose, onPlayTrack, onRefresh, onOpenMatcher }: 
             </div>
             <div className="detail-fields">
               {[
-                { label: 'YEAR',   value: album.enriched_year   || album.year   || '—' },
-                { label: 'LABEL',  value: album.enriched_label  || album.label  || '—' },
-                { label: 'GENRE',  value: album.enriched_genre  || album.genre  || '—' },
-                { label: 'TRACKS', value: album.track_count != null ? String(album.track_count) : (tracks.length > 0 ? String(tracks.length) : '—') },
+                { label: 'YEAR',    value: album.enriched_year  || album.year  || '—' },
+                { label: 'GENRE',   value: album.enriched_genre || album.genre || '—' },
+                { label: 'TRACKS',  value: album.track_count != null ? String(album.track_count) : (tracks.length > 0 ? String(tracks.length) : '—') },
+                { label: 'RUNTIME', value: (() => { const s = tracks.reduce((acc, t) => acc + (t.duration ?? 0), 0); return s > 0 ? formatTotalDuration(s) : '—' })() },
               ].map(f => (
                 <Field key={f.label} label={f.label} value={f.value} />
               ))}
@@ -1390,6 +1400,14 @@ function TrackRow({ track, hasBpm, hasKey, albumArtist, onPlay }: {
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function formatTotalDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
