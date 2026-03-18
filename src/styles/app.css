@@ -2079,6 +2079,12 @@
     outline 0.10s ease;
 }
 
+/* Cards to the RIGHT of the hovered card sit on top of its extended art,
+   so their spines remain reachable as the cursor moves across the strip */
+.shelf-spine:hover ~ .shelf-spine {
+  z-index: 101;
+}
+
 /* Currently playing */
 .shelf-spine--playing {
   outline: 1.5px solid var(--c-accent);
