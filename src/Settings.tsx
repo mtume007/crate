@@ -296,6 +296,23 @@ export default function Settings({ onClose, onLibraryChange }: { onClose: () => 
           <button className="settings-save" onClick={save} disabled={saving}>
             {saved ? 'Saved ✓' : saving ? 'Saving...' : 'Save changes'}
           </button>
+          {import.meta.env.DEV && (
+            <button
+              className="settings-save"
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.2)', marginLeft: 8 }}
+              onClick={async () => {
+                await fetch('http://localhost:8000/library/clear', { method: 'DELETE' })
+                await fetch('http://localhost:8000/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ library: { path: '' } }),
+                })
+                window.location.reload()
+              }}
+            >
+              Reset to new user
+            </button>
+          )}
         </div>
 
       </div>
