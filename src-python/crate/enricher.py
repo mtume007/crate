@@ -744,6 +744,8 @@ def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> 
     db = SessionLocal()
     try:
         query = db.query(Album).filter(Album.title != None)
+        # Never overwrite user-verified placements
+        query = query.filter(Album.shelf_key_verified != True)
         if not force:
             query = query.filter(Album.shelf_key == None)
         albums = query.all()

@@ -101,6 +101,8 @@ class Album(Base):
 
     # AI shelf classification (set by classify-shelf pass, never overwritten by Discogs)
     shelf_key            = Column(String)   # e.g. "Atmospheric Drum n Bass", "Tech House"
+    shelf_key_verified   = Column(Boolean, default=False)  # True = user placed it manually
+    shelf_order          = Column(Float)    # fractional index within section (1.0, 1.5, 2.0 …)
 
     # Artwork
     artwork_path  = Column(String)
@@ -130,6 +132,14 @@ def _migrate_enriched_columns():
                 conn.commit()
             except Exception:
                 pass  # Column already exists
+        # Boolean and Float columns need separate handling
+        for col, typedef in [('shelf_key_verified', 'INTEGER DEFAULT 0'),
+                              ('shelf_order', 'REAL')]:
+            try:
+                conn.execute(text(f'ALTER TABLE albums ADD COLUMN {col} {typedef}'))
+                conn.commit()
+            except Exception:
+                pass
 
 
 def get_db():

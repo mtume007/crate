@@ -77,3 +77,23 @@ export async function fetchClassifyStatus() {
   if (!res.ok) throw new Error('Failed to fetch classify status')
   return res.json()
 }
+
+export async function updateAlbumShelf(albumId: number, shelfKey: string, shelfOrder?: number) {
+  const res = await fetch(`http://localhost:8000/library/albums/${albumId}/shelf`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shelf_key: shelfKey, shelf_order: shelfOrder }),
+  })
+  if (!res.ok) throw new Error('Failed to update album shelf')
+  return res.json()
+}
+
+export async function renameShelfSection(oldKey: string, newKey: string) {
+  const res = await fetch(`http://localhost:8000/library/shelf-section/rename`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_key: oldKey, new_key: newKey }),
+  })
+  if (!res.ok) throw new Error('Failed to rename shelf section')
+  return res.json()
+}

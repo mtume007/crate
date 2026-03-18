@@ -268,7 +268,44 @@ def album_to_dict(a: Album) -> dict:
         "enriched_discogs_url": a.enriched_discogs_url,
         "enriched_source": a.enriched_source,
         "shelf_key": a.shelf_key,
+        "shelf_key_verified": bool(a.shelf_key_verified),
+        "shelf_order": a.shelf_order,
     }
+
+@app.patch('/library/albums/{album_id}/shelf')
+def update_album_shelf(album_id: int, payload: dict, db: Session = Depends(get_db)):
+    """
+    Move an album to a shelf section. Called when the user drags an album.
+    payload: { shelf_key: str, shelf_order?: float }
+    Sets shelf_key_verified=True so the AI classifier never overwrites it.
+    """
+    album = db.query(Album).filter(Album.id == album_id).first()
+    if not album:
+        raise HTTPException(status_code=404, detail='Album not found')
+    album.shelf_key          = payload.get('shelf_key', album.shelf_key)
+    album.shelf_order        = payload.get('shelf_order', album.shelf_order)
+    album.shelf_key_verified = True
+    db.commit()
+    return {'ok': True}
+
+@app.patch('/library/shelf-section/rename')
+def rename_shelf_section(payload: dict, db: Session = Depends(get_db)):
+    """
+    Rename all albums in a shelf section.
+    payload: { old_key: str, new_key: str }
+    Only renames unverified albums — verified ones stay (user may have placed
+    them there deliberately and named it differently).
+    """
+    old_key = payload.get('old_key', '')
+    new_key = payload.get('new_key', '').strip()
+    if not old_key or not new_key:
+        raise HTTPException(status_code=400, detail='old_key and new_key required')
+    updated = db.query(Album).filter(Album.shelf_key == old_key).all()
+    for a in updated:
+        a.shelf_key = new_key
+        a.shelf_key_verified = True   # locking the label after manual rename
+    db.commit()
+    return {'updated': len(updated)}
 
 # ── Tracks ────────────────────────────────────────────────────────────────────
 

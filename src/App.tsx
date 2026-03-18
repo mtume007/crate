@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, fetchAllTracks, artworkUrl, audioUrl, startClassifyShelf, fetchClassifyStatus } from './api'
+import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, fetchAllTracks, artworkUrl, audioUrl, startClassifyShelf, fetchClassifyStatus, updateAlbumShelf, renameShelfSection } from './api'
 import Settings from './Settings'
 import ReviewPanel from './ReviewPanel'
 import AddModal from './components/AddModal'
@@ -34,6 +34,8 @@ interface Album {
   enriched_discogs_url?: string | null
   enriched_source?: string | null
   shelf_key?: string | null
+  shelf_key_verified?: boolean
+  shelf_order?: number | null
 }
 
 interface Track {
@@ -615,6 +617,16 @@ function buildShelfSections(albums: Album[]): { style: string; genre: string; al
     map.get(key)!.albums.push(album)
   }
 
+  // Sort albums within each section by shelf_order (user-placed first, then by title)
+  for (const [, data] of map) {
+    data.albums.sort((a, b) => {
+      const ao = a.shelf_order ?? Infinity
+      const bo = b.shelf_order ?? Infinity
+      if (ao !== bo) return ao - bo
+      return (a.title || '').localeCompare(b.title || '')
+    })
+  }
+
   const sections = Array.from(map.entries()).map(([style, data]) => ({
     style,
     genre: data.genre,
@@ -634,6 +646,193 @@ function buildShelfSections(albums: Album[]): { style: string; genre: string; al
   return [...tagged, ...untagged]
 }
 
+// ── Shelf card (compact, dock-magnified) ────────────────────────────────────
+
+function ShelfCard({ album, isPlaying, isDragging, onClickAlbum, onContextMenu, onDragStart }: {
+  album: Album
+  isPlaying: boolean
+  isDragging: boolean
+  onClickAlbum: (a: Album) => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onDragStart: (e: React.DragEvent, album: Album) => void
+}) {
+  const [imgError, setImgError] = useState(false)
+  const url = artworkUrl(album.artwork_url)
+  return (
+    <div
+      className={`shelf-card${isPlaying ? ' shelf-card--playing' : ''}${isDragging ? ' shelf-card--dragging' : ''}`}
+      data-album-id={album.id}
+      draggable
+      onDragStart={e => onDragStart(e, album)}
+      onClick={() => onClickAlbum(album)}
+      onContextMenu={onContextMenu}
+    >
+      <div className="shelf-card-art">
+        {url && !imgError
+          ? <img src={url} onError={() => setImgError(true)} draggable={false} />
+          : <div className="shelf-card-placeholder">
+              <span>{(album.artist || album.title || '?')[0].toUpperCase()}</span>
+            </div>
+        }
+        {isPlaying && <div className="shelf-card-playing-dot" />}
+      </div>
+      <div className="shelf-card-reveal">
+        <span className="shelf-card-title">{album.title}</span>
+        <span className="shelf-card-artist">{album.artist}</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Shelf section with drag-and-drop ────────────────────────────────────────
+
+function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, onContextMenu, onDragStart, onDropToSection }: {
+  style: string
+  sAlbums: Album[]
+  currentAlbum: Album | null
+  draggingId: number | null
+  onClickAlbum: (a: Album) => void
+  onContextMenu: (album: Album, e: React.MouseEvent) => void
+  onDragStart: (e: React.DragEvent, album: Album) => void
+  onDropToSection: (targetSection: string, insertBeforeId: number | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [labelValue, setLabelValue] = useState(style)
+  const [dropInsertBeforeId, setDropInsertBeforeId] = useState<number | null | 'end'>('end')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  // Dock magnification via mouse tracking
+  const mousePos = useRef<{ x: number; y: number } | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  function applyMagnification() {
+    const grid = gridRef.current
+    if (!grid || !mousePos.current) return
+    const cards = grid.querySelectorAll<HTMLElement>('.shelf-card')
+    const { x: mx, y: my } = mousePos.current
+    const RADIUS = 130   // px — influence zone
+    const MAX_SCALE = 1.55
+    cards.forEach(card => {
+      const r = card.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const dist = Math.sqrt((cx - mx) ** 2 + (cy - my) ** 2)
+      const t = Math.max(0, 1 - dist / RADIUS)
+      const scale = 1 + (MAX_SCALE - 1) * t * t  // quadratic falloff
+      card.style.transform = `scale(${scale.toFixed(3)})`
+      card.style.zIndex = scale > 1.01 ? '10' : '0'
+    })
+  }
+
+  function resetMagnification() {
+    const grid = gridRef.current
+    if (!grid) return
+    grid.querySelectorAll<HTMLElement>('.shelf-card').forEach(card => {
+      card.style.transform = ''
+      card.style.zIndex = ''
+    })
+    mousePos.current = null
+  }
+
+  function onMouseMove(e: React.MouseEvent) {
+    mousePos.current = { x: e.clientX, y: e.clientY }
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        applyMagnification()
+        rafRef.current = null
+      })
+    }
+  }
+
+  // Determine insert position from drag X position
+  function getInsertIdFromDragEvent(e: React.DragEvent): number | null {
+    const grid = gridRef.current
+    if (!grid) return null
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('.shelf-card:not(.shelf-card--dragging)'))
+    if (!cards.length) return null
+    for (const card of cards) {
+      const r = card.getBoundingClientRect()
+      if (e.clientX < r.left + r.width / 2) {
+        return Number(card.dataset.albumId) || null
+      }
+    }
+    return null // after last → append
+  }
+
+  function handleLabelKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') commitRename()
+    if (e.key === 'Escape') { setLabelValue(style); setEditing(false) }
+  }
+
+  async function commitRename() {
+    setEditing(false)
+    const trimmed = labelValue.trim()
+    if (!trimmed || trimmed === style) { setLabelValue(style); return }
+    try { await renameShelfSection(style, trimmed) } catch { setLabelValue(style) }
+  }
+
+  return (
+    <div className="shelf-section"
+      onDragOver={e => { e.preventDefault(); setIsDragOver(true); setDropInsertBeforeId(getInsertIdFromDragEvent(e)) }}
+      onDragLeave={() => { setIsDragOver(false); setDropInsertBeforeId('end') }}
+      onDrop={e => {
+        e.preventDefault()
+        setIsDragOver(false)
+        const insertBefore = dropInsertBeforeId === 'end' ? null : dropInsertBeforeId
+        onDropToSection(style, insertBefore)
+        setDropInsertBeforeId('end')
+      }}
+    >
+      <div className={`shelf-divider${isDragOver ? ' shelf-divider--dragover' : ''}`}>
+        {editing
+          ? <input
+              ref={inputRef}
+              className="shelf-divider-input"
+              value={labelValue}
+              onChange={e => setLabelValue(e.target.value)}
+              onKeyDown={handleLabelKeyDown}
+              onBlur={commitRename}
+              autoFocus
+            />
+          : <span className="shelf-divider-label" onDoubleClick={() => setEditing(true)} title="Double-click to rename">{style}</span>
+        }
+        <span className="shelf-divider-line" />
+        <span className="shelf-divider-count">{sAlbums.length}</span>
+      </div>
+
+      <div
+        ref={gridRef}
+        className="shelf-grid"
+        onMouseMove={onMouseMove}
+        onMouseLeave={resetMagnification}
+      >
+        {sAlbums.map(album => (
+          <div key={album.id} className="shelf-card-wrap">
+            {isDragOver && dropInsertBeforeId === album.id && (
+              <div className="shelf-insert-indicator" />
+            )}
+            <ShelfCard
+              album={album}
+              isPlaying={album.id === currentAlbum?.id}
+              isDragging={album.id === draggingId}
+              onClickAlbum={onClickAlbum}
+              onContextMenu={e => onContextMenu(album, e)}
+              onDragStart={onDragStart}
+            />
+          </div>
+        ))}
+        {isDragOver && dropInsertBeforeId === null && (
+          <div className="shelf-insert-indicator shelf-insert-indicator--end" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Shelf view root ──────────────────────────────────────────────────────────
+
 function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onRefreshAlbums }: {
   albums: Album[]
   onAlbumClick: (a: Album) => void
@@ -641,17 +840,65 @@ function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onR
   onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
   onRefreshAlbums: () => void
 }) {
-  const sections = buildShelfSections(albums)
+  const [localAlbums, setLocalAlbums] = useState<Album[]>(albums)
+  const [draggingId, setDraggingId] = useState<number | null>(null)
   const [classifying, setClassifying] = useState(false)
   const [classifyProgress, setClassifyProgress] = useState<{ current: number; total: number; album: string } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const aiClassifiedCount = albums.filter(a => a.shelf_key).length
-  const allClassified = aiClassifiedCount === albums.length && albums.length > 0
+  // Sync when parent refreshes
+  useEffect(() => { setLocalAlbums(albums) }, [albums])
+
+  const sections = buildShelfSections(localAlbums)
+  const aiClassifiedCount = localAlbums.filter(a => a.shelf_key).length
+  const allClassified = aiClassifiedCount === localAlbums.length && localAlbums.length > 0
+
+  function handleDragStart(e: React.DragEvent, album: Album) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('albumId', String(album.id))
+    setDraggingId(album.id)
+  }
+
+  async function handleDropToSection(targetSection: string, insertBeforeId: number | null) {
+    if (!draggingId) return
+    const draggingAlbum = localAlbums.find(a => a.id === draggingId)
+    if (!draggingAlbum) return
+
+    // Compute new shelf_order using fractional indexing
+    const sectionAlbums = localAlbums
+      .filter(a => shelfStyleKey(a) === targetSection && a.id !== draggingId)
+      .sort((a, b) => (a.shelf_order ?? Infinity) - (b.shelf_order ?? Infinity))
+
+    let newOrder: number
+    if (insertBeforeId === null) {
+      // Append after last
+      const last = sectionAlbums[sectionAlbums.length - 1]
+      newOrder = last ? (last.shelf_order ?? sectionAlbums.length) + 1 : 1
+    } else {
+      const idx = sectionAlbums.findIndex(a => a.id === insertBeforeId)
+      if (idx === 0) {
+        const first = sectionAlbums[0]
+        newOrder = (first.shelf_order ?? 1) - 1
+      } else {
+        const prev = sectionAlbums[idx - 1]
+        const curr = sectionAlbums[idx]
+        newOrder = ((prev.shelf_order ?? idx) + (curr.shelf_order ?? idx + 1)) / 2
+      }
+    }
+
+    // Optimistic local update
+    setLocalAlbums(prev => prev.map(a =>
+      a.id === draggingId ? { ...a, shelf_key: targetSection, shelf_order: newOrder, shelf_key_verified: true } : a
+    ))
+    setDraggingId(null)
+
+    // Persist to backend
+    try { await updateAlbumShelf(draggingId, targetSection, newOrder) } catch { onRefreshAlbums() }
+  }
 
   async function handleClassify(force: boolean) {
     setClassifying(true)
-    setClassifyProgress({ current: 0, total: albums.length, album: '' })
+    setClassifyProgress({ current: 0, total: localAlbums.length, album: '' })
     try {
       await startClassifyShelf(force)
       pollRef.current = setInterval(async () => {
@@ -673,13 +920,12 @@ function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onR
   }
 
   return (
-    <div className="shelf-wrap">
-      {/* Classify toolbar */}
+    <div className="shelf-wrap" onDragEnd={() => setDraggingId(null)}>
       <div className="shelf-classify-bar">
         <span className="shelf-classify-info">
           {aiClassifiedCount > 0
-            ? `${aiClassifiedCount} / ${albums.length} AI-classified`
-            : 'Using Discogs tags — AI classification gives better results'}
+            ? `${aiClassifiedCount} / ${localAlbums.length} AI-classified · drag to rearrange · double-click label to rename`
+            : 'Drag albums between sections · double-click a label to rename it'}
         </span>
         {classifying && classifyProgress ? (
           <span className="shelf-classify-progress">
@@ -689,36 +935,25 @@ function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onR
         ) : (
           <div style={{ display: 'flex', gap: 6 }}>
             {!allClassified && (
-              <button className="shelf-classify-btn" onClick={() => handleClassify(false)} disabled={classifying}>
-                Classify new
-              </button>
+              <button className="shelf-classify-btn" onClick={() => handleClassify(false)} disabled={classifying}>Classify new</button>
             )}
-            <button className="shelf-classify-btn" onClick={() => handleClassify(true)} disabled={classifying}>
-              Redo all
-            </button>
+            <button className="shelf-classify-btn" onClick={() => handleClassify(true)} disabled={classifying}>Redo all</button>
           </div>
         )}
       </div>
 
       {sections.map(({ style, albums: sAlbums }) => (
-        <div key={style} className="shelf-section">
-          <div className="shelf-divider">
-            <span className="shelf-divider-label">{style}</span>
-            <span className="shelf-divider-line" />
-            <span className="shelf-divider-count">{sAlbums.length}</span>
-          </div>
-          <div className="shelf-grid">
-            {sAlbums.map(album => (
-              <AlbumCard
-                key={album.id}
-                album={album}
-                onClick={onAlbumClick}
-                isPlaying={album.id === currentAlbum?.id}
-                onContextMenu={e => onAlbumContextMenu(album, e)}
-              />
-            ))}
-          </div>
-        </div>
+        <ShelfSection
+          key={style}
+          style={style}
+          sAlbums={sAlbums}
+          currentAlbum={currentAlbum}
+          draggingId={draggingId}
+          onClickAlbum={onAlbumClick}
+          onContextMenu={onAlbumContextMenu}
+          onDragStart={handleDragStart}
+          onDropToSection={handleDropToSection}
+        />
       ))}
     </div>
   )
