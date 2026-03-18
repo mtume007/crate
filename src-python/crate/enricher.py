@@ -352,6 +352,212 @@ def enrich_library(progress_callback=None) -> dict:
         db.close()
 
 
+# ── Tag normalisation map ────────────────────────────────────────────────────
+#
+# Maps Last.fm tag variants → canonical Crate shelf labels.
+# MORE SPECIFIC entries must appear BEFORE less specific ones — the resolver
+# walks the map in order and returns the first match, so subgenres win over
+# broad genres when both appear in a tag list.
+#
+# To add a new mapping: just add a line. No other code needs changing.
+
+TAG_MAP: list[tuple[str, str]] = [
+    # ── Drum n Bass subgenres (most specific first) ──────────────────────────
+    ('liquid drum and bass',        'Liquid Drum n Bass'),
+    ('liquid dnb',                  'Liquid Drum n Bass'),
+    ('liquid funk',                 'Liquid Drum n Bass'),
+    ('neurofunk',                   'Neurofunk'),
+    ('jump up',                     'Jump Up'),
+    ('jump-up',                     'Jump Up'),
+    ('techstep',                    'Techstep'),
+    ('tech-step',                   'Techstep'),
+    ('darkstep',                    'Darkstep'),
+    ('dark drum and bass',          'Darkstep'),
+    ('atmospheric drum and bass',   'Atmospheric Drum n Bass'),
+    ('atmospheric dnb',             'Atmospheric Drum n Bass'),
+    ('deep drum and bass',          'Deep Drum n Bass'),
+    ('deep dnb',                    'Deep Drum n Bass'),
+    ('rollers',                     'Drum n Bass'),
+    ('jungle dnb',                  'Jungle'),
+    ('ragga jungle',                'Jungle'),
+    ('old school jungle',           'Jungle'),
+    # ── Drum n Bass broad ────────────────────────────────────────────────────
+    ('drum and bass',               'Drum n Bass'),
+    ('drum n bass',                 'Drum n Bass'),
+    ('dnb',                         'Drum n Bass'),
+    ("drum'n'bass",                 'Drum n Bass'),
+    ('d&b',                         'Drum n Bass'),
+    # ── Jungle ───────────────────────────────────────────────────────────────
+    ('jungle',                      'Jungle'),
+    ('hardcore jungle',             'Jungle'),
+    ('uk jungle',                   'Jungle'),
+    # ── Breakbeat ────────────────────────────────────────────────────────────
+    ('nu skool breaks',             'Breakbeat'),
+    ('nu-skool breaks',             'Breakbeat'),
+    ('big beat',                    'Big Beat'),
+    ('breakbeat',                   'Breakbeat'),
+    ('breakbeats',                  'Breakbeat'),
+    ('breaks',                      'Breakbeat'),
+    ('broken beat',                 'Broken Beat'),
+    # ── Techno subgenres ─────────────────────────────────────────────────────
+    ('detroit techno',              'Detroit Techno'),
+    ('acid techno',                 'Acid Techno'),
+    ('industrial techno',           'Industrial Techno'),
+    ('hard techno',                 'Hard Techno'),
+    ('minimal techno',              'Minimal Techno'),
+    ('dub techno',                  'Dub Techno'),
+    ('ambient techno',              'Ambient Techno'),
+    ('deep techno',                 'Deep Techno'),
+    ('tech trance',                 'Tech Trance'),
+    # ── Techno broad ─────────────────────────────────────────────────────────
+    ('techno',                      'Techno'),
+    # ── House subgenres ──────────────────────────────────────────────────────
+    ('deep house',                  'Deep House'),
+    ('tech house',                  'Tech House'),
+    ('progressive house',           'Progressive House'),
+    ('acid house',                  'Acid House'),
+    ('chicago house',               'Chicago House'),
+    ('afro house',                  'Afro House'),
+    ('minimal house',               'Minimal House'),
+    ('microhouse',                  'Microhouse'),
+    ('electro house',               'Electro House'),
+    ('soulful house',               'Soulful House'),
+    ('funky house',                 'Funky House'),
+    ('disco house',                 'Disco House'),
+    # ── House broad ──────────────────────────────────────────────────────────
+    ('house',                       'House'),
+    ('house music',                 'House'),
+    # ── Trance ───────────────────────────────────────────────────────────────
+    ('progressive trance',          'Progressive Trance'),
+    ('psytrance',                   'Psytrance'),
+    ('psy-trance',                  'Psytrance'),
+    ('acid trance',                 'Acid Trance'),
+    ('goa trance',                  'Goa Trance'),
+    ('trance',                      'Trance'),
+    # ── Electro ──────────────────────────────────────────────────────────────
+    ('electro',                     'Electro'),
+    ('electro funk',                'Electro Funk'),
+    ('miami bass',                  'Miami Bass'),
+    # ── Ambient / Downtempo ──────────────────────────────────────────────────
+    ('ambient techno',              'Ambient Techno'),
+    ('dark ambient',                'Dark Ambient'),
+    ('ambient',                     'Ambient'),
+    ('drone',                       'Drone'),
+    ('trip hop',                    'Trip Hop'),
+    ('trip-hop',                    'Trip Hop'),
+    ('triphop',                     'Trip Hop'),
+    ('downtempo',                   'Downtempo'),
+    ('chillout',                    'Downtempo'),
+    ('chill out',                   'Downtempo'),
+    # ── IDM / Experimental Electronic ────────────────────────────────────────
+    ('idm',                         'IDM'),
+    ('intelligent dance music',     'IDM'),
+    ('glitch',                      'Glitch'),
+    ('electronica',                 'Electronica'),
+    # ── UK Bass / Garage ─────────────────────────────────────────────────────
+    ('uk garage',                   'UK Garage'),
+    ('2-step',                      'UK Garage'),
+    ('two step',                    'UK Garage'),
+    ('dubstep',                     'Dubstep'),
+    ('grime',                       'Grime'),
+    ('uk bass',                     'UK Bass'),
+    ('bass music',                  'Bass Music'),
+    ('garage',                      'UK Garage'),
+    # ── Hip Hop ──────────────────────────────────────────────────────────────
+    ('instrumental hip hop',        'Instrumental Hip Hop'),
+    ('lo-fi hip hop',               'Lo-Fi Hip Hop'),
+    ('lo fi hip hop',               'Lo-Fi Hip Hop'),
+    ('boom bap',                    'Boom Bap'),
+    ('gangsta rap',                 'Hip-Hop'),
+    ('trap',                        'Trap'),
+    ('hip hop',                     'Hip-Hop'),
+    ('hip-hop',                     'Hip-Hop'),
+    ('rap',                         'Hip-Hop'),
+    ('east coast rap',              'Hip-Hop'),
+    ('west coast rap',              'Hip-Hop'),
+    # ── Jazz / Soul / Funk ───────────────────────────────────────────────────
+    ('acid jazz',                   'Acid Jazz'),
+    ('nu jazz',                     'Nu Jazz'),
+    ('jazz funk',                   'Jazz Funk'),
+    ('soul jazz',                   'Soul Jazz'),
+    ('jazz',                        'Jazz'),
+    ('neo soul',                    'Neo Soul'),
+    ('soul',                        'Soul'),
+    ('funk',                        'Funk'),
+    ('r&b',                         'R&B'),
+    ('rnb',                         'R&B'),
+    ('rhythm and blues',            'R&B'),
+    # ── Reggae / Dub ─────────────────────────────────────────────────────────
+    ('roots reggae',                'Roots Reggae'),
+    ('dub',                         'Dub'),
+    ('reggae',                      'Reggae'),
+    ('dancehall',                   'Dancehall'),
+    # ── Rock (for non-electronic albums) ─────────────────────────────────────
+    ('post-punk',                   'Post-Punk'),
+    ('post punk',                   'Post-Punk'),
+    ('indie rock',                  'Indie Rock'),
+    ('indie pop',                   'Indie Pop'),
+    ('indie',                       'Indie'),
+    ('alternative rock',            'Alternative Rock'),
+    ('alternative',                 'Alternative Rock'),
+    ('folk rock',                   'Folk Rock'),
+    ('country rock',                'Country Rock'),
+    ('country',                     'Country'),
+    ('blues rock',                  'Blues Rock'),
+    ('blues',                       'Blues'),
+    ('hard rock',                   'Hard Rock'),
+    ('heavy metal',                 'Metal'),
+    ('metal',                       'Metal'),
+    ('rock',                        'Rock'),
+    # ── Other ────────────────────────────────────────────────────────────────
+    ('footwork',                    'Footwork'),
+    ('juke',                        'Footwork'),
+    ('afrobeat',                    'Afrobeat'),
+    ('world music',                 'World'),
+    ('classical',                   'Classical'),
+    ('electronic',                  'Electronic'),
+]
+
+# Build a fast lookup dict: normalised tag string → canonical label
+_TAG_LOOKUP: dict[str, str] = {tag.lower(): label for tag, label in TAG_MAP}
+
+
+def resolve_from_tags(lastfm_tags: dict, min_weight: int = 30) -> str | None:
+    """
+    Try to resolve a shelf key directly from Last.fm tags without calling Claude.
+    Returns the most specific matching canonical label, or None if no match.
+
+    Strategy:
+    1. Combine artist + album tags. Album tags get a small weight boost (×1.2)
+       because they're more release-specific.
+    2. Filter to tags above min_weight.
+    3. Walk TAG_MAP in order (most specific first). For each entry, find the
+       best-weighted matching tag. Return the first entry that has a match
+       above threshold.
+    """
+    if not lastfm_tags:
+        return None
+
+    # Merge artist and album tags, album tags weighted slightly higher
+    merged: dict[str, float] = {}
+    for tag, weight in lastfm_tags.get('artist', []):
+        key = tag.lower().strip()
+        merged[key] = max(merged.get(key, 0), float(weight))
+    for tag, weight in lastfm_tags.get('album', []):
+        key = tag.lower().strip()
+        boosted = float(weight) * 1.2
+        merged[key] = max(merged.get(key, 0), boosted)
+
+    # Walk TAG_MAP in order — first match whose weight clears threshold wins.
+    # Because more-specific entries come first, specificity beats raw weight.
+    for tag_variant, canonical_label in TAG_MAP:
+        w = merged.get(tag_variant.lower())
+        if w and w >= min_weight:
+            return canonical_label
+
+    return None
+
+
 # ── Last.fm tag lookup ────────────────────────────────────────────────────────
 
 LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/'
@@ -428,6 +634,13 @@ def classify_shelf_key(album: Album, api_key: str,
     - lastfm_tags:   {'artist': [(tag, weight),...], 'album': [(tag, weight),...]}
     Returns a clean label like "Atmospheric Drum n Bass" or None on failure.
     """
+    # ── Fast path: try direct tag map lookup before calling Claude ───────────
+    if lastfm_tags:
+        direct = resolve_from_tags(lastfm_tags, min_weight=40)
+        if direct:
+            logger.info(f'  TAG_MAP hit → "{direct}" (no Claude call)')
+            return direct
+
     discogs_styles = album.enriched_style or ''
     discogs_genre  = album.enriched_genre or album.genre or ''
     tracks_str     = ', '.join(track_titles) if track_titles else '(unknown)'
