@@ -350,3 +350,110 @@ def enrich_library(progress_callback=None) -> dict:
         return {'total': total, 'enriched': enriched, 'failed': failed}
     finally:
         db.close()
+
+
+# ── Shelf key classification ──────────────────────────────────────────────────
+
+def classify_shelf_key(album: Album, api_key: str) -> str | None:
+    """
+    Ask Claude to assign a single canonical shelf label for this album.
+    Returns a clean label like "Atmospheric Drum n Bass" or None on failure.
+    """
+    # Build a rich context string from all available metadata
+    discogs_styles = album.enriched_style or ''
+    discogs_genre  = album.enriched_genre or album.genre or ''
+
+    prompt = f"""You are organising a DJ's physical record collection into labelled shelf sections.
+
+Album metadata:
+  Title:          {album.title or ''}
+  Artist:         {album.artist or ''}
+  Label:          {album.enriched_label or album.label or ''}
+  Catalog number: {album.enriched_catalog_num or album.catalog_num or ''}
+  Year:           {album.enriched_year or album.year or ''}
+  Discogs genre:  {discogs_genre}
+  Discogs styles: {discogs_styles}
+
+Task: assign ONE shelf label — the subgenre that best describes where this record belongs in a serious DJ collection.
+
+Rules:
+- Read ALL the metadata holistically. The album title and label are often the strongest signal.
+- If the Discogs styles are clearly wrong or mismatched with the title/label context, override them.
+- Be specific when you're confident: "Atmospheric Drum n Bass" beats "Drum n Bass".
+- Use labels DJs actually use: "Liquid Funk", "Jump Up", "Tech House", "Deep Techno", "Breakbeat", "Jungle", "Ambient Techno", "Neurofunk", "UK Garage", etc.
+- Be consistent — the same subgenre should always get the same label string.
+- If you genuinely can't determine the subgenre, use the broadest genre that fits.
+- Keep it short: 1–4 words, title case.
+
+Reply ONLY with JSON: {{"shelf_key": "Atmospheric Drum n Bass"}}"""
+
+    try:
+        resp = httpx.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+            },
+            json={
+                'model': 'claude-haiku-4-5-20251001',
+                'max_tokens': 60,
+                'messages': [{'role': 'user', 'content': prompt}]
+            },
+            timeout=15
+        )
+        resp.raise_for_status()
+        text = resp.json()['content'][0]['text'].strip()
+        text = re.sub(r'^```json\s*|\s*```$', '', text, flags=re.MULTILINE).strip()
+        key = json.loads(text).get('shelf_key', '').strip()
+        return key if key else None
+    except Exception as e:
+        logger.warning(f'classify_shelf_key failed for {album.artist} — {album.title}: {e}')
+        return None
+
+
+def classify_library_shelf_keys(force: bool = False, progress_callback=None) -> dict:
+    """
+    Run shelf-key classification for all albums that don't have one yet
+    (or all albums if force=True). Opens its own DB session.
+    """
+    from .database import SessionLocal
+
+    config  = load_config()
+    api_key = config.get('ai', {}).get('api_key', '')
+    if not api_key:
+        return {'error': 'No AI API key configured', 'total': 0, 'classified': 0, 'failed': 0}
+
+    db = SessionLocal()
+    try:
+        query = db.query(Album).filter(Album.title != None)
+        if not force:
+            query = query.filter(Album.shelf_key == None)
+        albums = query.all()
+
+        total      = len(albums)
+        classified = 0
+        failed     = 0
+        logger.info(f'classify_library_shelf_keys: {total} albums to classify')
+
+        for i, album in enumerate(albums):
+            key = classify_shelf_key(album, api_key)
+            if key:
+                album.shelf_key = key
+                classified += 1
+                logger.info(f'  → "{key}" for {album.artist} — {album.title}')
+            else:
+                failed += 1
+
+            db.commit()
+
+            if progress_callback:
+                progress_callback(i + 1, total, album.title or '')
+
+            # Haiku is fast; brief pause keeps rate limits comfortable
+            time.sleep(0.3)
+
+        logger.info(f'classify_library_shelf_keys: done — classified={classified}, failed={failed}')
+        return {'total': total, 'classified': classified, 'failed': failed}
+    finally:
+        db.close()

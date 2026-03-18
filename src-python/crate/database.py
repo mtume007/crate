@@ -99,6 +99,9 @@ class Album(Base):
     enriched_discogs_url = Column(String)
     enriched_source      = Column(String, default='file')  # 'file' | 'discogs'
 
+    # AI shelf classification (set by classify-shelf pass, never overwritten by Discogs)
+    shelf_key            = Column(String)   # e.g. "Atmospheric Drum n Bass", "Tech House"
+
     # Artwork
     artwork_path  = Column(String)
 
@@ -118,7 +121,7 @@ def _migrate_enriched_columns():
         'enriched_label', 'enriched_catalog_num', 'enriched_genre',
         'enriched_year', 'enriched_country', 'enriched_style',
         'enriched_format', 'enriched_discogs_id', 'enriched_discogs_url',
-        'enriched_source',
+        'enriched_source', 'shelf_key',
     ]
     with engine.connect() as conn:
         for col in enriched_cols:

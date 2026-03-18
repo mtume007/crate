@@ -65,3 +65,15 @@ export async function updateConfig(updates: object) {
   if (!res.ok) throw new Error('Failed to update config')
   return res.json()
 }
+
+export async function startClassifyShelf(force = false) {
+  const res = await fetch(`http://localhost:8000/library/classify-shelf?force=${force}`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to start shelf classification')
+  return res.json()
+}
+
+export async function fetchClassifyStatus() {
+  const res = await fetch(`http://localhost:8000/library/classify-shelf/status`)
+  if (!res.ok) throw new Error('Failed to fetch classify status')
+  return res.json()
+}

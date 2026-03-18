@@ -1926,6 +1926,54 @@
 .shelf-wrap::-webkit-scrollbar { width: 4px; }
 .shelf-wrap::-webkit-scrollbar-thumb { background: rgba(var(--ink),0.08); border-radius: 2px; }
 
+.shelf-classify-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 16px;
+  flex-shrink: 0;
+}
+.shelf-classify-info {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(var(--ink),0.35);
+}
+.shelf-classify-progress {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(var(--ink),0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  text-align: right;
+}
+.shelf-classify-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--ink),0.55);
+  background: rgba(var(--ink),0.06);
+  border: 1px solid rgba(var(--ink),0.10);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.shelf-classify-btn:hover {
+  background: rgba(var(--ink),0.10);
+  color: rgba(var(--ink),0.80);
+}
+.shelf-classify-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .shelf-section {
   display: flex;
   flex-direction: column;

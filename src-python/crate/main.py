@@ -15,7 +15,7 @@ from .database import init_db, get_db, SessionLocal, Track, Album
 from .scanner import scan_library, purge_stale_tracks
 from .deduplicator import deduplicate_library
 from .config import load_config, save_config
-from .enricher import enrich_library, enrich_album, get_release_detail, normalise_query, discogs_search
+from .enricher import enrich_library, enrich_album, get_release_detail, normalise_query, discogs_search, classify_library_shelf_keys
 from .organiser import organise_library
 
 logging.basicConfig(level=logging.INFO)
@@ -267,6 +267,7 @@ def album_to_dict(a: Album) -> dict:
         "enriched_discogs_id": a.enriched_discogs_id,
         "enriched_discogs_url": a.enriched_discogs_url,
         "enriched_source": a.enriched_source,
+        "shelf_key": a.shelf_key,
     }
 
 # ── Tracks ────────────────────────────────────────────────────────────────────
@@ -373,6 +374,54 @@ async def start_enrichment(background_tasks: BackgroundTasks):
 @app.get('/library/enrich/status')
 def get_enrichment_status():
     return enrichment_status
+
+# ── Shelf key classification ───────────────────────────────────────────────────
+
+classify_status = {
+    'running': False, 'current': 0, 'total': 0,
+    'current_album': '', 'classified': 0, 'failed': 0, 'error': None
+}
+
+@app.post('/library/classify-shelf')
+async def start_classify_shelf(background_tasks: BackgroundTasks, force: bool = False):
+    """
+    Run AI shelf-key classification for all albums.
+    Pass ?force=true to re-classify albums that already have a shelf_key.
+    """
+    if classify_status['running']:
+        return {'status': 'already_running'}
+
+    classify_status['running'] = True
+    classify_status['error'] = None
+    classify_status['classified'] = 0
+    classify_status['failed'] = 0
+    classify_status['current'] = 0
+    classify_status['total'] = 0
+    classify_status['current_album'] = ''
+
+    def run():
+        import traceback
+        try:
+            def progress(current, total, album_title):
+                classify_status['current'] = current
+                classify_status['total'] = total
+                classify_status['current_album'] = album_title or ''
+
+            result = classify_library_shelf_keys(force=force, progress_callback=progress)
+            classify_status.update(result)
+        except Exception as e:
+            logger.error(f'Classify-shelf background task crashed: {e}')
+            logger.error(traceback.format_exc())
+            classify_status['error'] = str(e)
+        finally:
+            classify_status['running'] = False
+
+    background_tasks.add_task(run)
+    return {'status': 'started'}
+
+@app.get('/library/classify-shelf/status')
+def get_classify_status():
+    return classify_status
 
 @app.post('/library/enrich/url')
 def enrich_by_url(payload: dict, db: Session = Depends(get_db)):

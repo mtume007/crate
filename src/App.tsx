@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, fetchAllTracks, artworkUrl, audioUrl } from './api'
+import { fetchAlbums, fetchStats, startScan, fetchScanStatus, fetchTracks, fetchAllTracks, artworkUrl, audioUrl, startClassifyShelf, fetchClassifyStatus } from './api'
 import Settings from './Settings'
 import ReviewPanel from './ReviewPanel'
 import AddModal from './components/AddModal'
@@ -33,6 +33,7 @@ interface Album {
   enriched_discogs_id?: string | null
   enriched_discogs_url?: string | null
   enriched_source?: string | null
+  shelf_key?: string | null
 }
 
 interface Track {
@@ -583,7 +584,7 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
   }
   if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} />
   if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} onTrackContextMenu={onTrackContextMenu} />
-  if (viewMode === 'shelf') return <ShelfView albums={albums} onAlbumClick={onAlbumClick} currentAlbum={currentAlbum} onAlbumContextMenu={onAlbumContextMenu} />
+  if (viewMode === 'shelf') return <ShelfView albums={albums} onAlbumClick={onAlbumClick} currentAlbum={currentAlbum} onAlbumContextMenu={onAlbumContextMenu} onRefreshAlbums={onAlbumUpdate} />
   return (
     <div className="library-grid-wrap">
       <div className="library-grid">
@@ -596,6 +597,8 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
 // ── Shelf helpers ──────────────────────────────────────────────────────────
 
 function shelfStyleKey(album: Album): string {
+  // Prefer AI-assigned shelf key; fall back to Discogs style parsing
+  if (album.shelf_key) return album.shelf_key
   const raw = album.enriched_style || album.genre || ''
   const parts = raw.split(',').map((s: string) => s.trim()).filter(Boolean)
   // Use the second style if present (the subgenre), otherwise the first
@@ -631,16 +634,64 @@ function buildShelfSections(albums: Album[]): { style: string; genre: string; al
   return [...tagged, ...untagged]
 }
 
-function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu }: {
+function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu, onRefreshAlbums }: {
   albums: Album[]
   onAlbumClick: (a: Album) => void
   currentAlbum: Album | null
   onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
+  onRefreshAlbums: () => void
 }) {
   const sections = buildShelfSections(albums)
+  const [classifying, setClassifying] = useState(false)
+  const [classifyProgress, setClassifyProgress] = useState<{ current: number; total: number; album: string } | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const aiClassifiedCount = albums.filter(a => a.shelf_key).length
+
+  async function handleClassify() {
+    setClassifying(true)
+    setClassifyProgress({ current: 0, total: albums.length, album: '' })
+    try {
+      await startClassifyShelf(false)
+      pollRef.current = setInterval(async () => {
+        try {
+          const st = await fetchClassifyStatus()
+          setClassifyProgress({ current: st.current, total: st.total, album: st.current_album })
+          if (!st.running) {
+            clearInterval(pollRef.current!)
+            setClassifying(false)
+            setClassifyProgress(null)
+            onRefreshAlbums()
+          }
+        } catch { /* ignore */ }
+      }, 800)
+    } catch {
+      setClassifying(false)
+      setClassifyProgress(null)
+    }
+  }
 
   return (
     <div className="shelf-wrap">
+      {/* Classify toolbar */}
+      <div className="shelf-classify-bar">
+        <span className="shelf-classify-info">
+          {aiClassifiedCount > 0
+            ? `${aiClassifiedCount} / ${albums.length} AI-classified`
+            : 'Using Discogs tags — AI classification gives better results'}
+        </span>
+        {classifying && classifyProgress ? (
+          <span className="shelf-classify-progress">
+            {classifyProgress.current}/{classifyProgress.total}
+            {classifyProgress.album ? ` · ${classifyProgress.album}` : ''}
+          </span>
+        ) : (
+          <button className="shelf-classify-btn" onClick={handleClassify} disabled={classifying}>
+            AI classify shelves
+          </button>
+        )}
+      </div>
+
       {sections.map(({ style, albums: sAlbums }) => (
         <div key={style} className="shelf-section">
           <div className="shelf-divider">
