@@ -303,7 +303,8 @@ export default function App() {
   const handleOnboardingComplete = (path: string) => {
     setLibraryPath(path)
     setShowOnboarding(false)
-    handleScan(path)
+    // Scan + enrich + organise already ran inside the wizard — just reload the library
+    loadLibrary()
   }
 
   const pct = scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0
