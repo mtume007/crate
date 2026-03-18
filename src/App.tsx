@@ -91,7 +91,7 @@ export default function App() {
   const [backendError, setBackendError] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'artist' | 'year-desc' | 'year-asc'>('artist')
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'coverflow'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'coverflow' | 'shelf'>('grid')
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number; album?: Album; track?: Track; trackAlbum?: Album
   } | null>(null)
@@ -391,6 +391,7 @@ export default function App() {
           <button className={`vs-btn${viewMode === 'grid' ? ' active' : ''}`} title="Grid" onClick={() => setViewMode('grid')}><IconGrid size={12} /></button>
           <button className={`vs-btn${viewMode === 'coverflow' ? ' active' : ''}`} title="Coverflow" onClick={() => setViewMode('coverflow')}><IconCoverflow size={12} /></button>
           <button className={`vs-btn${viewMode === 'list' ? ' active' : ''}`} title="List" onClick={() => setViewMode('list')}><IconList size={12} /></button>
+          <button className={`vs-btn${viewMode === 'shelf' ? ' active' : ''}`} title="Shelf" onClick={() => setViewMode('shelf')}><IconShelf size={12} /></button>
         </div>
         <div className="toolbar-sep" />
         <div className="sort-switcher">
@@ -554,7 +555,7 @@ function NavItem({ id, label, active, icon, onClick }: { id: View; label: string
 function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTrack, hasLibrary, searchQuery, viewMode, onAlbumUpdate, currentAlbum, onAlbumContextMenu, onTrackContextMenu }: {
   albums: Album[]; loaded: boolean; scanning: boolean; onScan: () => void; onAlbumClick: (a: Album) => void
   onPlayTrack: (track: Track, list: Track[], album: Album) => void
-  hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow'
+  hasLibrary: boolean; searchQuery: string; viewMode: 'grid' | 'list' | 'coverflow' | 'shelf'
   onAlbumUpdate: () => void; currentAlbum: Album | null
   onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
   onTrackContextMenu: (track: Track, album: Album, e: React.MouseEvent) => void
@@ -582,11 +583,84 @@ function LibraryView({ albums, loaded, scanning, onScan, onAlbumClick, onPlayTra
   }
   if (viewMode === 'list') return <ListView albums={albums} onAlbumClick={onAlbumClick} onAlbumUpdate={onAlbumUpdate} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} />
   if (viewMode === 'coverflow') return <CoverflowView albums={albums} onPlayTrack={onPlayTrack} currentAlbumId={currentAlbum?.id ?? null} onAlbumContextMenu={onAlbumContextMenu} onTrackContextMenu={onTrackContextMenu} />
+  if (viewMode === 'shelf') return <ShelfView albums={albums} onAlbumClick={onAlbumClick} currentAlbum={currentAlbum} onAlbumContextMenu={onAlbumContextMenu} />
   return (
     <div className="library-grid-wrap">
       <div className="library-grid">
         {albums.map(album => <AlbumCard key={album.id} album={album} onClick={onAlbumClick} isPlaying={album.id === currentAlbum?.id} onContextMenu={e => onAlbumContextMenu(album, e)} />)}
       </div>
+    </div>
+  )
+}
+
+// ── Shelf helpers ──────────────────────────────────────────────────────────
+
+function shelfStyleKey(album: Album): string {
+  const raw = album.enriched_style || album.genre || ''
+  const parts = raw.split(',').map((s: string) => s.trim()).filter(Boolean)
+  // Use the second style if present (the subgenre), otherwise the first
+  return parts[1] ?? parts[0] ?? '—'
+}
+
+function buildShelfSections(albums: Album[]): { style: string; genre: string; albums: Album[] }[] {
+  const map = new Map<string, { genre: string; albums: Album[] }>()
+
+  for (const album of albums) {
+    const key = shelfStyleKey(album)
+    const genre = album.enriched_genre || album.genre || ''
+    if (!map.has(key)) map.set(key, { genre, albums: [] })
+    map.get(key)!.albums.push(album)
+  }
+
+  const sections = Array.from(map.entries()).map(([style, data]) => ({
+    style,
+    genre: data.genre,
+    albums: data.albums,
+  }))
+
+  // Sort: group by genre so related styles cluster, then by album count desc within genre
+  sections.sort((a, b) => {
+    const genreCmp = a.genre.localeCompare(b.genre)
+    if (genreCmp !== 0) return genreCmp
+    return b.albums.length - a.albums.length
+  })
+
+  // Push the untagged section to the bottom
+  const tagged   = sections.filter(s => s.style !== '—')
+  const untagged = sections.filter(s => s.style === '—')
+  return [...tagged, ...untagged]
+}
+
+function ShelfView({ albums, onAlbumClick, currentAlbum, onAlbumContextMenu }: {
+  albums: Album[]
+  onAlbumClick: (a: Album) => void
+  currentAlbum: Album | null
+  onAlbumContextMenu: (album: Album, e: React.MouseEvent) => void
+}) {
+  const sections = buildShelfSections(albums)
+
+  return (
+    <div className="shelf-wrap">
+      {sections.map(({ style, albums: sAlbums }) => (
+        <div key={style} className="shelf-section">
+          <div className="shelf-divider">
+            <span className="shelf-divider-label">{style}</span>
+            <span className="shelf-divider-line" />
+            <span className="shelf-divider-count">{sAlbums.length}</span>
+          </div>
+          <div className="shelf-grid">
+            {sAlbums.map(album => (
+              <AlbumCard
+                key={album.id}
+                album={album}
+                onClick={onAlbumClick}
+                isPlaying={album.id === currentAlbum?.id}
+                onContextMenu={e => onAlbumContextMenu(album, e)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -1200,6 +1274,9 @@ function IconSearch({ size = 16 }: { size?: number }) {
 }
 function IconSingles({ size = 16 }: { size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="9" r="2.5" /><path d="M10.5 9V3.5l3 1" /></svg>
+}
+function IconShelf({ size = 16 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 5h14M1 11h14" /><rect x="2" y="1" width="2.5" height="4" /><rect x="6" y="1" width="2" height="4" /><rect x="10" y="1" width="3" height="4" /><rect x="3" y="7" width="3" height="4" /><rect x="8" y="7" width="2" height="4" /><rect x="12" y="7" width="2" height="4" /></svg>
 }
 
 // ── Album Detail Panel ─────────────────────────────────────────────────────
