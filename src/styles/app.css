@@ -2043,10 +2043,11 @@
 /* ── Spine strip — one row per genre section ─────────────────────── */
 
 .shelf-fan {
+  position: relative;      /* positions the popup preview */
   display: flex;
   align-items: flex-end;
-  padding-bottom: 52px;   /* breathing room: cards lift 24px + label strip */
-  overflow: visible;       /* lifted cards render above the strip boundary */
+  padding-bottom: 196px;   /* space for popup (172px) + 24px gap above spines */
+  overflow: visible;
 }
 
 /* ── Spine card ──────────────────────────────────────────────────── */
@@ -2059,28 +2060,18 @@
   border-radius: var(--border-radius, 8px);
   overflow: hidden;
   cursor: pointer;
-  will-change: transform;
   outline: 1.5px solid transparent;
   z-index: 1;
-  /* Mouse-leave: slow ease-out settles the card back down */
-  transition:
-    transform 0.35s ease-out,
-    outline 0.18s ease;
+  transition: outline 0.12s ease;
 }
 
-/* Mouse-enter: fast spring snaps the card up instantly */
+/* Hover: just an amber outline — popup handles the reveal, no lift needed */
 .shelf-spine:hover {
-  transform: translateY(-24px);
   z-index: 100;
   outline: 1.5px solid var(--c-accent-border);
-  filter: drop-shadow(0 14px 36px rgba(0,0,0,0.88));
-  transition:
-    transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
-    outline 0.10s ease;
 }
 
-/* Cards to the RIGHT of the hovered card sit on top of its extended art,
-   so their spines remain reachable as the cursor moves across the strip */
+/* Cards to the right sit on top so the hovered spine's art never blocks browsing */
 .shelf-spine:hover ~ .shelf-spine {
   z-index: 101;
 }
@@ -2166,7 +2157,7 @@
   pointer-events: none;
 }
 
-.shelf-spine:hover .shelf-spine-reveal,
+/* Only the playing card shows the frosted reveal on the spine itself */
 .shelf-spine--playing .shelf-spine-reveal {
   opacity: 1;
   transform: translateY(0);
@@ -2184,6 +2175,82 @@
 }
 
 .shelf-spine-artist {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.50);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+}
+
+/* ── Popup preview — floats above the hovered spine ─────────────── */
+
+.shelf-preview {
+  position: absolute;
+  bottom: 138px;          /* above the spine strip: padding-bottom minus spine height */
+  width: 172px;
+  height: 172px;
+  border-radius: var(--border-radius, 8px);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 200;
+  filter: drop-shadow(0 12px 40px rgba(0,0,0,0.92)) drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+  outline: 1px solid rgba(255,255,255,0.07);
+  animation: shelf-preview-in 0.1s ease-out;
+}
+
+@keyframes shelf-preview-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+.shelf-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shelf-preview-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--ink), 0.06);
+  font-family: var(--font-mono);
+  font-size: 42px;
+  font-weight: 500;
+  color: rgba(var(--ink), 0.15);
+}
+
+.shelf-preview-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 40px 10px 10px;
+  background: linear-gradient(to top, rgba(0,0,0,0.86) 0%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shelf-preview-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.shelf-preview-artist {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 400;

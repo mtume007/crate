@@ -651,7 +651,7 @@ function buildShelfSections(albums: Album[]): { style: string; genre: string; al
 const SPINE_CARD = 114   // full card size (px)
 const SPINE_PEEK = 22    // visible spine slice (px)
 
-function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onClickAlbum, onContextMenu, onDragStart }: {
+function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onClickAlbum, onContextMenu, onDragStart, onMouseEnter, onMouseLeave }: {
   album: Album
   isPlaying: boolean
   isDragging: boolean
@@ -660,6 +660,8 @@ function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onC
   onClickAlbum: (a: Album) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDragStart: (e: React.DragEvent, album: Album) => void
+  onMouseEnter: () => void
+  onMouseLeave: () => void
 }) {
   const [imgError, setImgError] = useState(false)
   const url = artworkUrl(album.artwork_url)
@@ -677,6 +679,8 @@ function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onC
       onDragStart={e => onDragStart(e, album)}
       onClick={() => onClickAlbum(album)}
       onContextMenu={onContextMenu}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{ marginRight: isLast ? 0 : -(SPINE_CARD - SPINE_PEEK) }}
     >
       {url && !imgError
@@ -686,9 +690,30 @@ function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onC
           </div>
       }
       {isPlaying && <div className="shelf-spine-dot" />}
-      <div className="shelf-spine-reveal">
-        <span className="shelf-spine-title">{album.title}</span>
-        <span className="shelf-spine-artist">{album.artist}</span>
+    </div>
+  )
+}
+
+// ── Artwork popup — floats above the hovered spine ───────────────────────────
+
+function ShelfPreview({ album, idx, total }: { album: Album; idx: number; total: number }) {
+  const [imgError, setImgError] = useState(false)
+  const url = artworkUrl(album.artwork_url)
+  const PREVIEW_W = 172
+  const fanWidth = (total - 1) * SPINE_PEEK + SPINE_CARD
+  const center   = idx * SPINE_PEEK + SPINE_PEEK / 2
+  const left     = Math.max(0, Math.min(fanWidth - PREVIEW_W, center - PREVIEW_W / 2))
+  return (
+    <div className="shelf-preview" style={{ left }}>
+      {url && !imgError
+        ? <img src={url} alt="" onError={() => setImgError(true)} />
+        : <div className="shelf-preview-placeholder">
+            <span>{(album.artist || album.title || '?')[0].toUpperCase()}</span>
+          </div>
+      }
+      <div className="shelf-preview-info">
+        <span className="shelf-preview-title">{album.title}</span>
+        <span className="shelf-preview-artist">{album.artist}</span>
       </div>
     </div>
   )
@@ -710,6 +735,8 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
   const [open, setOpen] = useState(false)
   // Overflow switches to visible after expand animation so cards can lift freely
   const [fanOverflow, setFanOverflow] = useState<'hidden' | 'visible'>('hidden')
+  // Which spine is under the cursor — drives the popup preview
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [editing, setEditing] = useState(false)
   const [labelValue, setLabelValue] = useState(style)
   const [dropInsertBeforeId, setDropInsertBeforeId] = useState<number | null | 'end'>('end')
@@ -826,8 +853,17 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
               onClickAlbum={onClickAlbum}
               onContextMenu={e => onContextMenu(album, e)}
               onDragStart={onDragStart}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
             />
           ))}
+          {hoveredIdx !== null && (
+            <ShelfPreview
+              album={sAlbums[hoveredIdx]}
+              idx={hoveredIdx}
+              total={sAlbums.length}
+            />
+          )}
         </div>
       </div>
     </div>
