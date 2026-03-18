@@ -706,12 +706,32 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
   onDragStart: (e: React.DragEvent, album: Album) => void
   onDropToSection: (targetSection: string, insertBeforeId: number | null) => void
 }) {
+  // Sections start collapsed — user sees full genre overview first
+  const [open, setOpen] = useState(false)
+  // Overflow switches to visible after expand animation so cards can lift freely
+  const [fanOverflow, setFanOverflow] = useState<'hidden' | 'visible'>('hidden')
   const [editing, setEditing] = useState(false)
   const [labelValue, setLabelValue] = useState(style)
   const [dropInsertBeforeId, setDropInsertBeforeId] = useState<number | null | 'end'>('end')
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const fanRef = useRef<HTMLDivElement>(null)
+
+  // card height + fan padding-bottom + small buffer
+  const COLLAPSE_H = SPINE_CARD + 56
+
+  function toggleOpen(_e: React.MouseEvent) {
+    if (open) {
+      setFanOverflow('hidden')   // clip before animating shut
+      setOpen(false)
+    } else {
+      setOpen(true)              // overflow becomes visible on transitionEnd
+    }
+  }
+
+  function onCollapseEnd() {
+    if (open) setFanOverflow('visible')  // allow card lift once fully open
+  }
 
   // Determine insert position from drag X coordinate across spine strip
   function getInsertIdFromDragEvent(e: React.DragEvent): number | null {
@@ -752,7 +772,17 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
         setDropInsertBeforeId('end')
       }}
     >
-      <div className={`shelf-divider${isDragOver ? ' shelf-divider--dragover' : ''}`}>
+      {/* Clickable header row — single-click expands, double-click label renames */}
+      <div
+        className={`shelf-divider shelf-divider--clickable${isDragOver ? ' shelf-divider--dragover' : ''}`}
+        onClick={toggleOpen}
+      >
+        <svg
+          className={`shelf-chevron${open ? ' shelf-chevron--open' : ''}`}
+          width="10" height="10" viewBox="0 0 10 10" fill="none"
+        >
+          <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
         {editing
           ? <input
               ref={inputRef}
@@ -762,27 +792,43 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
               onKeyDown={handleLabelKeyDown}
               onBlur={commitRename}
               autoFocus
+              onClick={e => e.stopPropagation()}
             />
-          : <span className="shelf-divider-label" onDoubleClick={() => setEditing(true)} title="Double-click to rename">{style}</span>
+          : <span
+              className="shelf-divider-label"
+              onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
+            >
+              {style}
+            </span>
         }
         <span className="shelf-divider-line" />
         <span className="shelf-divider-count">{sAlbums.length}</span>
       </div>
 
-      <div ref={fanRef} className="shelf-fan">
-        {sAlbums.map((album, i) => (
-          <ShelfCard
-            key={album.id}
-            album={album}
-            isPlaying={album.id === currentAlbum?.id}
-            isDragging={album.id === draggingId}
-            isLast={i === sAlbums.length - 1}
-            showInsertBefore={isDragOver && dropInsertBeforeId === album.id}
-            onClickAlbum={onClickAlbum}
-            onContextMenu={e => onContextMenu(album, e)}
-            onDragStart={onDragStart}
-          />
-        ))}
+      {/* Collapse wrapper — height animates; overflow flips to visible after open */}
+      <div
+        style={{
+          maxHeight: open ? COLLAPSE_H : 0,
+          overflow: fanOverflow,
+          transition: 'max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onTransitionEnd={onCollapseEnd}
+      >
+        <div ref={fanRef} className="shelf-fan">
+          {sAlbums.map((album, i) => (
+            <ShelfCard
+              key={album.id}
+              album={album}
+              isPlaying={album.id === currentAlbum?.id}
+              isDragging={album.id === draggingId}
+              isLast={i === sAlbums.length - 1}
+              showInsertBefore={isDragOver && dropInsertBeforeId === album.id}
+              onClickAlbum={onClickAlbum}
+              onContextMenu={e => onContextMenu(album, e)}
+              onDragStart={onDragStart}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
