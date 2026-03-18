@@ -2017,81 +2017,89 @@
   flex-shrink: 0;
 }
 
-.shelf-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 12px;
-  padding-bottom: 8px;
-  /* Magnification overflows grid — allow cards to scale into neighbours */
-  overflow: visible;
+/* ── Spine strip — one row per genre section ─────────────────────── */
+
+.shelf-fan {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 52px;   /* breathing room: cards lift 24px + label strip */
+  overflow: visible;       /* lifted cards render above the strip boundary */
 }
 
-/* ── Shelf card ──────────────────────────────────────────────────── */
+/* ── Spine card ──────────────────────────────────────────────────── */
 
-.shelf-card {
+.shelf-spine {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  width: 114px;
+  height: 114px;
+  flex-shrink: 0;
   border-radius: var(--border-radius, 8px);
   overflow: hidden;
   cursor: pointer;
-  outline: 1.5px solid transparent;
   will-change: transform;
+  outline: 1.5px solid transparent;
+  z-index: 1;
   transition:
-    outline 0.15s ease,
-    box-shadow 0.2s ease;
-  /* transform managed by Dock rAF loop — no CSS transition on transform */
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    outline 0.15s ease;
 }
 
-.shelf-card:hover {
-  outline: 1.5px solid rgba(var(--c-accent-rgb, 232,160,69), 0.45);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 0 10px rgba(var(--c-accent-rgb, 232,160,69), 0.07);
-  z-index: 10;
+/* Hover: lift out of the strip like pulling a record */
+.shelf-spine:hover {
+  transform: translateY(-24px);
+  z-index: 100;
+  outline: 1.5px solid var(--c-accent-border);
+  filter: drop-shadow(0 14px 36px rgba(0,0,0,0.88));
 }
 
-.shelf-card--playing {
+/* Currently playing */
+.shelf-spine--playing {
   outline: 1.5px solid var(--c-accent);
+  z-index: 2;
 }
 
-.shelf-card--dragging {
-  opacity: 0.35;
-  outline: 1.5px solid rgba(var(--c-accent-rgb, 232,160,69), 0.25);
+/* Being dragged */
+.shelf-spine--dragging {
+  opacity: 0.28;
+  z-index: 0;
 }
 
-/* Artwork square ────────────────────── */
-
-.shelf-card-art {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: var(--c-card);
-  overflow: hidden;
-  flex-shrink: 0;
+/* Drag-over insert target: left-edge amber glow */
+.shelf-spine--insert {
+  outline: 1.5px solid var(--c-accent);
+  box-shadow: inset 3px 0 0 var(--c-accent);
 }
 
-.shelf-card-art img {
+/* Artwork ────────────────────────────── */
+
+.shelf-spine-art {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+  pointer-events: none;
+  user-select: none;
 }
 
-.shelf-card-placeholder {
+.shelf-spine-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(var(--ink), 0.04);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
   color: rgba(var(--ink), 0.12);
 }
 
-/* Playing indicator ─────────────────── */
+/* Playing dot ────────────────────────── */
 
-.shelf-card-playing-dot {
+.shelf-spine-dot {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 7px;
+  right: 7px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -2105,32 +2113,33 @@
   50%       { opacity: 0.6; transform: scale(0.85); }
 }
 
-/* Frosted reveal strip ──────────────── */
+/* Frosted reveal — slides in on hover / playing ── */
 
-.shelf-card-reveal {
+.shelf-spine-reveal {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20px 7px 7px;
-  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%);
+  padding: 28px 8px 8px;
+  background: linear-gradient(to top, rgba(0,0,0,0.84) 0%, transparent 100%);
   display: flex;
   flex-direction: column;
   gap: 1px;
   opacity: 0;
-  transform: translateY(3px);
+  transform: translateY(4px);
   transition:
     opacity 0.18s ease,
-    transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
 }
 
-.shelf-card:hover .shelf-card-reveal,
-.shelf-card--playing .shelf-card-reveal {
+.shelf-spine:hover .shelf-spine-reveal,
+.shelf-spine--playing .shelf-spine-reveal {
   opacity: 1;
   transform: translateY(0);
 }
 
-.shelf-card-title {
+.shelf-spine-title {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
@@ -2138,46 +2147,19 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
-.shelf-card-artist {
+.shelf-spine-artist {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 400;
-  color: rgba(255,255,255,0.52);
+  color: rgba(255,255,255,0.50);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
   letter-spacing: 0.04em;
-}
-
-/* ── Shelf card wrapper (position context for insert indicator) ───── */
-
-.shelf-card-wrap {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-}
-
-/* ── Drag-and-drop insert indicator ──────────────────────────────── */
-
-.shelf-insert-indicator {
-  width: 2px;
-  align-self: stretch;
-  min-height: 96px;
-  background: var(--c-accent);
-  border-radius: 1px;
-  box-shadow: 0 0 8px var(--c-accent);
-  flex-shrink: 0;
-  pointer-events: none;
-  margin-right: 4px;
-}
-
-.shelf-insert-indicator--end {
-  margin-right: 0;
-  margin-left: 4px;
 }
 
 /* Section divider when dragging over it ─ */

@@ -648,37 +648,47 @@ function buildShelfSections(albums: Album[]): { style: string; genre: string; al
 
 // ── Shelf card (compact, dock-magnified) ────────────────────────────────────
 
-function ShelfCard({ album, isPlaying, isDragging, onClickAlbum, onContextMenu, onDragStart }: {
+const SPINE_CARD = 114   // full card size (px)
+const SPINE_PEEK = 22    // visible spine slice (px)
+
+function ShelfCard({ album, isPlaying, isDragging, isLast, showInsertBefore, onClickAlbum, onContextMenu, onDragStart }: {
   album: Album
   isPlaying: boolean
   isDragging: boolean
+  isLast: boolean
+  showInsertBefore: boolean
   onClickAlbum: (a: Album) => void
   onContextMenu: (e: React.MouseEvent) => void
   onDragStart: (e: React.DragEvent, album: Album) => void
 }) {
   const [imgError, setImgError] = useState(false)
   const url = artworkUrl(album.artwork_url)
+  const cls = [
+    'shelf-spine',
+    isPlaying        && 'shelf-spine--playing',
+    isDragging       && 'shelf-spine--dragging',
+    showInsertBefore && 'shelf-spine--insert',
+  ].filter(Boolean).join(' ')
   return (
     <div
-      className={`shelf-card${isPlaying ? ' shelf-card--playing' : ''}${isDragging ? ' shelf-card--dragging' : ''}`}
+      className={cls}
       data-album-id={album.id}
       draggable
       onDragStart={e => onDragStart(e, album)}
       onClick={() => onClickAlbum(album)}
       onContextMenu={onContextMenu}
+      style={{ marginRight: isLast ? 0 : -(SPINE_CARD - SPINE_PEEK) }}
     >
-      <div className="shelf-card-art">
-        {url && !imgError
-          ? <img src={url} onError={() => setImgError(true)} draggable={false} />
-          : <div className="shelf-card-placeholder">
-              <span>{(album.artist || album.title || '?')[0].toUpperCase()}</span>
-            </div>
-        }
-        {isPlaying && <div className="shelf-card-playing-dot" />}
-      </div>
-      <div className="shelf-card-reveal">
-        <span className="shelf-card-title">{album.title}</span>
-        <span className="shelf-card-artist">{album.artist}</span>
+      {url && !imgError
+        ? <img className="shelf-spine-art" src={url} alt="" onError={() => setImgError(true)} draggable={false} />
+        : <div className="shelf-spine-placeholder">
+            <span>{(album.artist || album.title || '?')[0].toUpperCase()}</span>
+          </div>
+      }
+      {isPlaying && <div className="shelf-spine-dot" />}
+      <div className="shelf-spine-reveal">
+        <span className="shelf-spine-title">{album.title}</span>
+        <span className="shelf-spine-artist">{album.artist}</span>
       </div>
     </div>
   )
@@ -701,56 +711,13 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
   const [dropInsertBeforeId, setDropInsertBeforeId] = useState<number | null | 'end'>('end')
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const gridRef = useRef<HTMLDivElement>(null)
+  const fanRef = useRef<HTMLDivElement>(null)
 
-  // Dock magnification via mouse tracking
-  const mousePos = useRef<{ x: number; y: number } | null>(null)
-  const rafRef = useRef<number | null>(null)
-
-  function applyMagnification() {
-    const grid = gridRef.current
-    if (!grid || !mousePos.current) return
-    const cards = grid.querySelectorAll<HTMLElement>('.shelf-card')
-    const { x: mx, y: my } = mousePos.current
-    const RADIUS = 130   // px — influence zone
-    const MAX_SCALE = 1.55
-    cards.forEach(card => {
-      const r = card.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      const dist = Math.sqrt((cx - mx) ** 2 + (cy - my) ** 2)
-      const t = Math.max(0, 1 - dist / RADIUS)
-      const scale = 1 + (MAX_SCALE - 1) * t * t  // quadratic falloff
-      card.style.transform = `scale(${scale.toFixed(3)})`
-      card.style.zIndex = scale > 1.01 ? '10' : '0'
-    })
-  }
-
-  function resetMagnification() {
-    const grid = gridRef.current
-    if (!grid) return
-    grid.querySelectorAll<HTMLElement>('.shelf-card').forEach(card => {
-      card.style.transform = ''
-      card.style.zIndex = ''
-    })
-    mousePos.current = null
-  }
-
-  function onMouseMove(e: React.MouseEvent) {
-    mousePos.current = { x: e.clientX, y: e.clientY }
-    if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(() => {
-        applyMagnification()
-        rafRef.current = null
-      })
-    }
-  }
-
-  // Determine insert position from drag X position
+  // Determine insert position from drag X coordinate across spine strip
   function getInsertIdFromDragEvent(e: React.DragEvent): number | null {
-    const grid = gridRef.current
-    if (!grid) return null
-    const cards = Array.from(grid.querySelectorAll<HTMLElement>('.shelf-card:not(.shelf-card--dragging)'))
+    const fan = fanRef.current
+    if (!fan) return null
+    const cards = Array.from(fan.querySelectorAll<HTMLElement>('.shelf-spine:not(.shelf-spine--dragging)'))
     if (!cards.length) return null
     for (const card of cards) {
       const r = card.getBoundingClientRect()
@@ -802,30 +769,20 @@ function ShelfSection({ style, sAlbums, currentAlbum, draggingId, onClickAlbum, 
         <span className="shelf-divider-count">{sAlbums.length}</span>
       </div>
 
-      <div
-        ref={gridRef}
-        className="shelf-grid"
-        onMouseMove={onMouseMove}
-        onMouseLeave={resetMagnification}
-      >
-        {sAlbums.map(album => (
-          <div key={album.id} className="shelf-card-wrap">
-            {isDragOver && dropInsertBeforeId === album.id && (
-              <div className="shelf-insert-indicator" />
-            )}
-            <ShelfCard
-              album={album}
-              isPlaying={album.id === currentAlbum?.id}
-              isDragging={album.id === draggingId}
-              onClickAlbum={onClickAlbum}
-              onContextMenu={e => onContextMenu(album, e)}
-              onDragStart={onDragStart}
-            />
-          </div>
+      <div ref={fanRef} className="shelf-fan">
+        {sAlbums.map((album, i) => (
+          <ShelfCard
+            key={album.id}
+            album={album}
+            isPlaying={album.id === currentAlbum?.id}
+            isDragging={album.id === draggingId}
+            isLast={i === sAlbums.length - 1}
+            showInsertBefore={isDragOver && dropInsertBeforeId === album.id}
+            onClickAlbum={onClickAlbum}
+            onContextMenu={e => onContextMenu(album, e)}
+            onDragStart={onDragStart}
+          />
         ))}
-        {isDragOver && dropInsertBeforeId === null && (
-          <div className="shelf-insert-indicator shelf-insert-indicator--end" />
-        )}
       </div>
     </div>
   )
