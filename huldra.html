@@ -145,6 +145,7 @@
 
     @media (max-width: 640px) {
       .doc-grid { grid-template-columns: 1fr 1fr; }
+      .doc-grid-2 { grid-template-columns: 1fr !important; }
       .doc-two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
       .doc-title { font-size: 26px; }
       .doc { padding: 32px 24px; }
@@ -302,6 +303,140 @@
       color: rgba(var(--d-ink), 0.48);
     }
 
+    /* Weight scale */
+    .doc-weight-row {
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--d-border);
+    }
+    .doc-weight-row:first-child { border-top: 1px solid var(--d-border); }
+    .doc-weight-num {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--d-accent);
+      opacity: 0.65;
+      width: 36px;
+      flex-shrink: 0;
+    }
+    .doc-weight-name {
+      font-size: 11px;
+      color: rgba(var(--d-ink), 0.88);
+      width: 100px;
+      flex-shrink: 0;
+    }
+    .doc-weight-desc {
+      font-size: 10px;
+      font-weight: 300;
+      color: rgba(var(--d-ink), 0.38);
+      line-height: 1.6;
+    }
+    .doc-weight-name.w300 { font-weight: 300; }
+    .doc-weight-name.w400 { font-weight: 400; }
+    .doc-weight-name.w500 { font-weight: 500; }
+
+    /* Casing examples */
+    .doc-casing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .doc-casing-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    .doc-casing-card {
+      background: var(--d-card);
+      border: 1px solid var(--d-border);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .doc-casing-label {
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .doc-casing-label.good { color: rgba(var(--d-ink), 0.30); }
+    .doc-casing-label.bad { color: rgba(var(--d-ink), 0.20); text-decoration: line-through; }
+    .doc-casing-example {
+      font-size: 13px;
+      font-weight: 300;
+      color: rgba(var(--d-ink), 0.75);
+      line-height: 2;
+    }
+    .doc-casing-example .amber { color: var(--d-accent); font-weight: 500; font-size: 9px; letter-spacing: 1.5px; }
+    .doc-casing-example .dim { color: rgba(var(--d-ink), 0.35); font-size: 11px; }
+
+    /* Reference cards */
+    .doc-ref-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 20px 0;
+    }
+    .doc-ref-card {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 24px;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--d-border);
+      align-items: start;
+    }
+    .doc-ref-card:first-child { border-top: 1px solid var(--d-border); }
+    .doc-ref-card-source {
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--d-accent);
+      opacity: 0.70;
+      letter-spacing: 0.5px;
+      line-height: 1.6;
+    }
+    .doc-ref-card-principle {
+      font-size: 10px;
+      font-weight: 300;
+      color: rgba(var(--d-ink), 0.50);
+      line-height: 1.75;
+    }
+    .doc-ref-card-principle strong {
+      font-weight: 500;
+      color: rgba(var(--d-ink), 0.80);
+    }
+
+    /* The test */
+    .doc-test {
+      background: rgba(232,160,69,0.04);
+      border: 1px solid rgba(232,160,69,0.12);
+      border-radius: 10px;
+      padding: 28px 32px;
+      margin: 28px 0;
+    }
+    .doc-test-label {
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--d-accent);
+      opacity: 0.65;
+      margin-bottom: 16px;
+    }
+    .doc-test-body {
+      font-size: 12px;
+      font-weight: 300;
+      line-height: 1.85;
+      color: rgba(var(--d-ink), 0.60);
+      max-width: 560px;
+    }
+    .doc-test-body strong {
+      font-weight: 400;
+      color: rgba(var(--d-ink), 0.85);
+    }
+
     .doc-footer {
       display: flex;
       align-items: center;
@@ -335,9 +470,9 @@
 
   <div class="doc" id="doc">
 
-    <p class="doc-eyebrow">HULDRA · Design System & Product Overview</p>
+    <p class="doc-eyebrow">HULDRA v2 · Design Language</p>
     <h1 class="doc-title">The collection is<br>the protagonist.</h1>
-    <p class="doc-sub">A design philosophy and the first application built on it.</p>
+    <p class="doc-sub">A design philosophy and the application built on it.<br>v2 — Breathing room. Lighter weights. Less noise.</p>
 
     <hr class="doc-rule">
 
@@ -353,13 +488,23 @@
       The UI is the room the collection lives in.<br>The room doesn't perform.
     </div>
     <p class="doc-body">
-      Three references hold the system together. <strong>Wegner and Jacobsen</strong> —
-      honest materials, structure visible but never decorative.
-      <strong>James Turrell</strong> — the interface tries to disappear.
-      You are inside your music, not looking at it.
-      <strong>Apple Liquid Glass</strong> — controls float above content,
-      recede when not needed.
+      The shared principle across all three references: <strong>reduce until only the essential remains. Then refine what's left until it's beautiful.</strong>
     </p>
+
+    <div class="doc-ref-cards">
+      <div class="doc-ref-card">
+        <div class="doc-ref-card-source">Dieter Rams<br>606 Universal Shelving</div>
+        <div class="doc-ref-card-principle">The shelving holds the records. You don't look at the shelving. It is precise, modular, almost invisible. <strong>The records are the display.</strong> This is what Crate's chrome should feel like — structural support, not decoration. The sidebar is the aluminium rail. The toolbar is the shelf pin. They hold things in place. They do not draw attention.</div>
+      </div>
+      <div class="doc-ref-card">
+        <div class="doc-ref-card-source">Carl Hansen & Søn<br>Hans Wegner</div>
+        <div class="doc-ref-card-principle">The chair disappears when you sit in it. You feel the material, the craftsmanship, the proportion — but you never think about it consciously. <strong>The quality is in what's removed, not what's added.</strong> When you open Crate, you should be looking at your music, not at the app.</div>
+      </div>
+      <div class="doc-ref-card">
+        <div class="doc-ref-card-source">Jony Ive<br>Ferrari Luce</div>
+        <div class="doc-ref-card-principle">"Everything is founded on being functional. It's not styled, it's not garnish, because that's a distraction and it doesn't last well." The Luce rejects touchscreen maximalism. <strong>Every visible element must earn its place by being functional, not decorative.</strong> A divider line you remove. Whitespace does the same job.</div>
+      </div>
+    </div>
 
     <hr class="doc-rule">
 
@@ -368,12 +513,12 @@
       <div class="doc-card">
         <p class="doc-card-num">01</p>
         <p class="doc-card-title">One font</p>
-        <p class="doc-card-body">Martian Mono throughout. Weight and size carry all hierarchy. The whole app speaks one typographic language.</p>
+        <p class="doc-card-body">Martian Mono throughout. Weight and size carry all hierarchy. Three weights: 300, 400, 500. The whole app speaks one typographic language.</p>
       </div>
       <div class="doc-card">
         <p class="doc-card-num">02</p>
         <p class="doc-card-title">Amber is structural</p>
-        <p class="doc-card-body">The accent appears only on labels — YEAR, GENRE, BPM. Never on content. Artist names are white. "2002" is muted. Absolute.</p>
+        <p class="doc-card-body">The accent appears only on chrome labels — YEAR, GENRE, BPM — and the wordmark. Never on content. Artist names are white. "2002" is muted. Absolute.</p>
       </div>
       <div class="doc-card">
         <p class="doc-card-num">03</p>
@@ -382,18 +527,91 @@
       </div>
       <div class="doc-card">
         <p class="doc-card-num">04</p>
+        <p class="doc-card-title">Artwork first</p>
+        <p class="doc-card-body">The heaviest visual element is the album cover, not the labels. Text recedes. Art comes forward. The grid exists to display covers, not to fill space.</p>
+      </div>
+      <div class="doc-card">
+        <p class="doc-card-num">05</p>
         <p class="doc-card-title">Spring motion</p>
         <p class="doc-card-body">Cards scale with a slight overshoot on hover. The UI is alive at the point of contact. Only transform and opacity — never layout.</p>
       </div>
       <div class="doc-card">
-        <p class="doc-card-num">05</p>
+        <p class="doc-card-num">06</p>
         <p class="doc-card-title">Two modes</p>
         <p class="doc-card-body">Dark is near-black #080808. Light is warm parchment #f5f0e8. The amber accent shifts to match. Same personality, different room.</p>
       </div>
       <div class="doc-card">
-        <p class="doc-card-num">06</p>
+        <p class="doc-card-num">07</p>
         <p class="doc-card-title">Glass layers</p>
         <p class="doc-card-body">Toolbar, titlebar, and playbar float above content with backdrop blur. The chrome recedes. The music comes forward.</p>
+      </div>
+      <div class="doc-card">
+        <p class="doc-card-num">08</p>
+        <p class="doc-card-title">Whitespace is structure</p>
+        <p class="doc-card-body">Padding and margin do the work of divider lines. Breathing room makes the layout feel intentional — like a well-set page in a book.</p>
+      </div>
+    </div>
+
+    <hr class="doc-rule">
+
+    <p class="doc-section-label">Weight hierarchy</p>
+    <p class="doc-body">Rams' Braun products use weight sparingly. The heaviest visual element is the product — the record player, the radio — not the labelling. In Crate, the heaviest element is the album artwork. Text recedes to support it.</p>
+
+    <div style="margin: 24px 0;">
+      <div class="doc-weight-row">
+        <span class="doc-weight-num">300</span>
+        <span class="doc-weight-name w300">Light</span>
+        <span class="doc-weight-desc">All secondary text — sidebar items, artist names, counts, metadata values, section headers, playbar artist. The majority of the app lives here.</span>
+      </div>
+      <div class="doc-weight-row">
+        <span class="doc-weight-num">400</span>
+        <span class="doc-weight-name w400">Regular</span>
+        <span class="doc-weight-desc">Primary content — album titles, active sidebar items, toolbar title, track names, playbar track name. What you're looking at, not looking past.</span>
+      </div>
+      <div class="doc-weight-row">
+        <span class="doc-weight-num">500</span>
+        <span class="doc-weight-name w500">Medium</span>
+        <span class="doc-weight-desc">CRATE wordmark only. Nothing else in the app should be 500. When 500 appears, it's the mark, not the content.</span>
+      </div>
+    </div>
+
+    <hr class="doc-rule">
+
+    <p class="doc-section-label">Casing rules</p>
+    <p class="doc-body">Uppercase makes every word the same visual weight. Sentence case creates natural hierarchy — the eye moves through it, not across it as a wall of identical caps.</p>
+
+    <div class="doc-casing-grid">
+      <div class="doc-casing-card">
+        <div class="doc-casing-label good">Content — sentence case</div>
+        <div class="doc-casing-example">
+          Dean Blunt<br>
+          <span class="dim">Electronic</span><br>
+          <span class="dim">Experimental</span>
+        </div>
+      </div>
+      <div class="doc-casing-card">
+        <div class="doc-casing-label bad">Content — not like this</div>
+        <div class="doc-casing-example">
+          DEAN BLUNT<br>
+          <span class="dim">ELECTRONIC</span><br>
+          <span class="dim">EXPERIMENTAL</span>
+        </div>
+      </div>
+      <div class="doc-casing-card">
+        <div class="doc-casing-label good">Chrome — uppercase only here</div>
+        <div class="doc-casing-example">
+          <span class="amber">YEAR</span>&nbsp;&nbsp;&nbsp;<span class="amber">LABEL</span>&nbsp;&nbsp;&nbsp;<span class="amber">CAT#</span><br>
+          <span class="amber">GENRES</span><br>
+          <span class="amber">LIBRARY</span>
+        </div>
+      </div>
+      <div class="doc-casing-card">
+        <div class="doc-casing-label good">The distinction</div>
+        <div class="doc-casing-example" style="font-size:11px; line-height: 2.1;">
+          <span class="amber">YEAR</span> tells you the <em>kind</em> of thing.<br>
+          <span style="color: rgba(var(--d-ink), 0.75)">2024</span> tells you what the thing <em>is</em>.<br>
+          Chrome is uppercase. Content is not.
+        </div>
       </div>
     </div>
 
@@ -402,10 +620,21 @@
     <p class="doc-section-label">Colour system</p>
     <div class="doc-tokens" id="swatches"></div>
     <div class="doc-refs">
-      <div class="doc-ref"><span class="doc-ref-name">TITLE</span><span class="doc-ref-desc">Titles and album names — the primary voice, full opacity</span></div>
-      <div class="doc-ref"><span class="doc-ref-name">AMBER</span><span class="doc-ref-desc">Structural labels only — YEAR, GENRE, BPM, TRACKS</span></div>
-      <div class="doc-ref"><span class="doc-ref-name">MUTED</span><span class="doc-ref-desc">Field values — 1998, Warp, Electronic</span></div>
-      <div class="doc-ref"><span class="doc-ref-name">GHOST</span><span class="doc-ref-desc">Track numbers, interface chrome</span></div>
+      <div class="doc-ref"><span class="doc-ref-name">TITLE</span><span class="doc-ref-desc">Titles and album names — the primary voice, near full opacity (0.85–0.95)</span></div>
+      <div class="doc-ref"><span class="doc-ref-name">AMBER</span><span class="doc-ref-desc">Structural chrome only — YEAR, GENRE, BPM, TRACKS. Never on content.</span></div>
+      <div class="doc-ref"><span class="doc-ref-name">MUTED</span><span class="doc-ref-desc">Secondary content — artist names, field values, sidebar items. 0.45–0.50 opacity floor.</span></div>
+      <div class="doc-ref"><span class="doc-ref-name">GHOST</span><span class="doc-ref-desc">Counts, track numbers, interface chrome. 0.35 opacity floor — never below this.</span></div>
+    </div>
+
+    <hr class="doc-rule">
+
+    <p class="doc-section-label">The test</p>
+    <div class="doc-test">
+      <div class="doc-test-label">Pass / fail criterion</div>
+      <div class="doc-test-body">
+        When you open Crate, your eye should go to the <strong>album covers first</strong>. Not the sidebar, not the section headers, not the playbar. The covers.<br><br>
+        Everything else should support that focus — quietly, structurally, beautifully. If any element of chrome is competing with the artwork for attention, it has failed. Remove it, lighten it, or shrink it until it stops.
+      </div>
     </div>
 
     <hr class="doc-rule">
@@ -451,7 +680,7 @@
 
     <div class="doc-footer">
       <span class="doc-footer-name">Peder · HULDRA Design System · 2026</span>
-      <span class="doc-footer-mark">CRATE · V1</span>
+      <span class="doc-footer-mark">CRATE · V2</span>
     </div>
 
   </div>
